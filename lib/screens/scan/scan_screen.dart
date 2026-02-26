@@ -8,6 +8,7 @@ import '../../providers/scan_provider.dart';
 import '../../providers/plant_provider.dart';
 import '../../utils/haptics.dart';
 import '../../widgets/radar_sweep_overlay.dart';
+import '../../widgets/glassmorphic_card.dart';
 
 class ScanScreen extends ConsumerStatefulWidget {
   final String? plantId;
@@ -105,11 +106,6 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        title: const Text('Scan Plant'),
-      ),
       body: Stack(
         children: [
           // Camera preview
@@ -132,6 +128,41 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
               ),
             ),
 
+          // Custom AppBar Overlay
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () => context.pop(),
+                    ),
+                    const Expanded(
+                      child: Text(
+                        'Scan Plant',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          shadows: [
+                            Shadow(color: Colors.black54, blurRadius: 4),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 48), // Balance close button
+                  ],
+                ),
+              ),
+            ),
+          ),
+
           // Radar sweep overlay (during processing)
           if (pipelineState == ScanPipelineState.capturing ||
               pipelineState == ScanPipelineState.uploading ||
@@ -139,7 +170,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
             Center(
               child: RadarSweepOverlay(
                 isActive: true,
-                size: MediaQuery.of(context).size.width * 0.7,
+                size: MediaQuery.of(context).size.width * 0.8,
               ),
             ),
 
@@ -151,10 +182,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                 height: MediaQuery.of(context).size.width * 0.75,
                 decoration: BoxDecoration(
                   border: Border.all(
-                    color: AppTheme.primaryGreen.withValues(alpha: 0.6),
-                    width: 2,
+                    color: Colors.white.withValues(alpha: 0.3),
+                    width: 1,
                   ),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(24),
                 ),
                 child: Stack(
                   children: [
@@ -168,24 +199,32 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
           // Status overlay
           if (pipelineState != ScanPipelineState.idle)
             Positioned(
-              bottom: 160,
+              bottom: 180,
               left: 0,
               right: 0,
               child: Center(
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    _getStatusText(pipelineState),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
+                child: GlassmorphicCard(
+                  borderRadius: 30,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  backgroundColor: Colors.black.withValues(alpha: 0.4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        _getStatusText(pipelineState),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -222,12 +261,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                           style: TextStyle(color: Colors.white70),
                         );
                       }
-                      return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                      return GlassmorphicCard(
+                        borderRadius: 16,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        backgroundColor: Colors.white.withValues(alpha: 0.15),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
                             value: _selectedPlantId,
@@ -238,14 +275,11 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                             dropdownColor: Colors.grey.shade900,
                             iconEnabledColor: Colors.white,
                             isExpanded: true,
+                            style: const TextStyle(color: Colors.white, fontSize: 16),
                             items: plants.map((plant) {
                               return DropdownMenuItem(
                                 value: plant.id,
-                                child: Text(
-                                  plant.nickname,
-                                  style:
-                                      const TextStyle(color: Colors.white),
-                                ),
+                                child: Text(plant.nickname),
                               );
                             }).toList(),
                             onChanged: (value) {
@@ -256,49 +290,38 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                       );
                     },
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 32),
 
                   // Capture button
                   GestureDetector(
                     onTap: _isCapturing ? null : _captureAndScan,
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      width: 72,
-                      height: 72,
+                      width: 80,
+                      height: 80,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: _isCapturing
                             ? Colors.grey
-                            : AppTheme.primaryGreen,
+                            : Colors.white.withValues(alpha: 0.2), // Glassy ring
                         border: Border.all(
                           color: Colors.white,
                           width: 4,
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color:
-                                AppTheme.primaryGreen.withValues(alpha: 0.4),
-                            blurRadius: 16,
-                            spreadRadius: 2,
-                          ),
-                        ],
                       ),
-                      child: _isCapturing
-                          ? const Center(
-                              child: SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            )
-                          : const Icon(
-                              Icons.document_scanner,
-                              color: Colors.white,
-                              size: 32,
-                            ),
+                      child: Center(
+                        child: Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _isCapturing ? Colors.grey.shade400 : Colors.white,
+                          ),
+                          child: _isCapturing
+                              ? const SizedBox()
+                              : const Icon(Icons.camera_alt, color: Colors.black54, size: 32),
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -311,9 +334,9 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   }
 
   List<Widget> _buildCornerMarkers() {
-    const markerLength = 20.0;
-    const markerWidth = 3.0;
-    const color = AppTheme.primaryGreen;
+    const markerLength = 24.0;
+    const markerWidth = 4.0;
+    const color = Colors.white; // Clean white markers
 
     return [
       // Top-left
@@ -438,21 +461,26 @@ class _CornerPainter extends CustomPainter {
 
     final path = Path();
 
+    // Add slight curve to corners
     if (isTop && isLeft) {
       path.moveTo(0, size.height);
-      path.lineTo(0, 0);
+      path.lineTo(0, 8);
+      path.quadraticBezierTo(0, 0, 8, 0);
       path.lineTo(size.width, 0);
     } else if (isTop && !isLeft) {
       path.moveTo(0, 0);
-      path.lineTo(size.width, 0);
+      path.lineTo(size.width - 8, 0);
+      path.quadraticBezierTo(size.width, 0, size.width, 8);
       path.lineTo(size.width, size.height);
     } else if (!isTop && isLeft) {
       path.moveTo(0, 0);
-      path.lineTo(0, size.height);
+      path.lineTo(0, size.height - 8);
+      path.quadraticBezierTo(0, size.height, 8, size.height);
       path.lineTo(size.width, size.height);
     } else {
       path.moveTo(0, size.height);
-      path.lineTo(size.width, size.height);
+      path.lineTo(size.width - 8, size.height);
+      path.quadraticBezierTo(size.width, size.height, size.width, size.height - 8);
       path.lineTo(size.width, 0);
     }
 

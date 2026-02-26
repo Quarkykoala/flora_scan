@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 
 import '../../config/theme.dart';
 import '../../models/scan.dart';
 import '../../providers/scan_provider.dart';
 import '../../widgets/health_score_indicator.dart';
 import '../../widgets/confidence_chip.dart';
+import '../../widgets/ambient_background.dart';
+import '../../widgets/glassmorphic_card.dart';
 
 class ScanHistoryScreen extends ConsumerWidget {
   final String? plantId;
@@ -19,77 +22,98 @@ class ScanHistoryScreen extends ConsumerWidget {
         ? ref.watch(plantScansProvider(plantId!))
         : ref.watch(allScansProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(plantId != null ? 'Plant Scan History' : 'All Scans'),
-      ),
-      body: scansAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, size: 48, color: Colors.red),
-              const SizedBox(height: 16),
-              Text('Error: $e'),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () {
-                  if (plantId != null) {
-                    ref.invalidate(plantScansProvider(plantId!));
-                  } else {
-                    ref.invalidate(allScansProvider);
-                  }
-                },
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
+    return AmbientBackground(
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(plantId != null ? 'Plant Scan History' : 'All Scans'),
         ),
-        data: (scans) {
-          if (scans.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.document_scanner_outlined,
-                      size: 64, color: Colors.grey.shade400),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No scans yet',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: Colors.grey.shade600,
+        body: scansAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                const SizedBox(height: 16),
+                Text('Error: $e'),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    if (plantId != null) {
+                      ref.invalidate(plantScansProvider(plantId!));
+                    } else {
+                      ref.invalidate(allScansProvider);
+                    }
+                  },
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+          data: (scans) {
+            if (scans.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GlassmorphicCard(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.document_scanner_outlined,
+                              size: 64, color: Colors.grey.shade400),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No scans yet',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  color: Colors.grey.shade600,
+                                ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Scan a plant to get AI-powered diagnostics',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Colors.grey.shade500,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return RefreshIndicator(
+              onRefresh: () async {
+                if (plantId != null) {
+                  ref.invalidate(plantScansProvider(plantId!));
+                } else {
+                  ref.invalidate(allScansProvider);
+                }
+              },
+              child: AnimationLimiter(
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: scans.length,
+                  itemBuilder: (context, index) {
+                    return AnimationConfiguration.staggeredList(
+                      position: index,
+                      duration: const Duration(milliseconds: 500),
+                      child: SlideAnimation(
+                        verticalOffset: 50.0,
+                        child: FadeInAnimation(
+                          child: _ScanHistoryCard(scan: scans[index]),
                         ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Scan a plant to get AI-powered diagnostics',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey.shade500,
-                        ),
-                  ),
-                ],
+                      ),
+                    );
+                  },
+                ),
               ),
             );
-          }
-
-          return RefreshIndicator(
-            onRefresh: () async {
-              if (plantId != null) {
-                ref.invalidate(plantScansProvider(plantId!));
-              } else {
-                ref.invalidate(allScansProvider);
-              }
-            },
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: scans.length,
-              itemBuilder: (context, index) {
-                return _ScanHistoryCard(scan: scans[index]);
-              },
-            ),
-          );
-        },
+          },
+        ),
       ),
     );
   }
@@ -102,93 +126,98 @@ class _ScanHistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => context.push('/diagnosis/${scan.id}'),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  HealthScoreIndicator(score: scan.healthScore, size: 56),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          scan.diagnosisLocalized ??
-                              scan.diagnosisCode ??
-                              _getStatusLabel(scan.processingStatus),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _formatDateTime(scan.capturedAtUtc),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade500,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            ConfidenceChip(
-                              level: scan.confidenceLevel,
-                              score: scan.diagnosisConfidence,
-                            ),
-                            const SizedBox(width: 8),
-                            _StatusIndicator(status: scan.processingStatus),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.chevron_right, color: Colors.grey),
-                ],
-              ),
-              // Telemetry summary bar
-              if (scan.isComplete) ...[
-                const SizedBox(height: 12),
-                const Divider(height: 1),
-                const SizedBox(height: 8),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GlassmorphicCard(
+        padding: EdgeInsets.zero, // Reset padding for InkWell
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => context.push('/diagnosis/${scan.id}'),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _TelemetryMini(
-                      icon: Icons.thermostat,
-                      value: scan.tempC != null
-                          ? '${scan.tempC!.toStringAsFixed(1)}°C'
-                          : '--',
+                    HealthScoreIndicator(score: scan.healthScore, size: 56),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            scan.diagnosisLocalized ??
+                                scan.diagnosisCode ??
+                                _getStatusLabel(scan.processingStatus),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 15,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _formatDateTime(scan.capturedAtUtc),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              if (scan.diagnosisConfidence != null) ...[
+                                ConfidenceChip(
+                                  level: scan.confidenceLevel,
+                                  score: scan.diagnosisConfidence,
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                              _StatusIndicator(status: scan.processingStatus),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                    _TelemetryMini(
-                      icon: Icons.water_drop,
-                      value: scan.humidityPct != null
-                          ? '${scan.humidityPct!.toInt()}%'
-                          : '--',
-                    ),
-                    _TelemetryMini(
-                      icon: Icons.light_mode,
-                      value: scan.luxReading != null
-                          ? '${scan.luxReading!.toInt()} lux'
-                          : '--',
-                    ),
-                    _TelemetryMini(
-                      icon: Icons.air,
-                      value: scan.aqi != null ? 'AQI ${scan.aqi}' : '--',
-                    ),
+                    const Icon(Icons.chevron_right, color: Colors.grey),
                   ],
                 ),
+                // Telemetry summary bar
+                if (scan.isComplete) ...[
+                  const SizedBox(height: 12),
+                  Divider(height: 1, color: Colors.grey.withValues(alpha: 0.2)),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _TelemetryMini(
+                        icon: Icons.thermostat,
+                        value: scan.tempC != null
+                            ? '${scan.tempC!.toStringAsFixed(1)}°C'
+                            : '--',
+                      ),
+                      _TelemetryMini(
+                        icon: Icons.water_drop,
+                        value: scan.humidityPct != null
+                            ? '${scan.humidityPct!.toInt()}%'
+                            : '--',
+                      ),
+                      _TelemetryMini(
+                        icon: Icons.light_mode,
+                        value: scan.luxReading != null
+                            ? '${scan.luxReading!.toInt()} lux'
+                            : '--',
+                      ),
+                      _TelemetryMini(
+                        icon: Icons.air,
+                        value: scan.aqi != null ? 'AQI ${scan.aqi}' : '--',
+                      ),
+                    ],
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -249,6 +278,7 @@ class _StatusIndicator extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Text(
         label,
@@ -269,11 +299,11 @@ class _TelemetryMini extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: Colors.grey.shade500),
-        const SizedBox(width: 3),
+        Icon(icon, size: 14, color: Colors.grey.shade600),
+        const SizedBox(width: 4),
         Text(
           value,
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontWeight: FontWeight.w500),
         ),
       ],
     );

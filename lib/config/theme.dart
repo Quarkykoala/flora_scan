@@ -10,7 +10,15 @@ class AppTheme {
   static const Color accentTeal = Color(0xFF00897B);
   static const Color surfaceLight = Color(0xFFF5F9F5);
   static const Color surfaceDark = Color(0xFF1A2E1A);
-  static const Color cardGlass = Color(0x30FFFFFF);
+
+  // Glassmorphism constants
+  static const Color glassBorderLight = Color(0x66FFFFFF); // 40% white
+  static const Color glassBorderDark = Color(0x26FFFFFF);  // 15% white
+  static const Color glassFillLight = Color(0xB3FFFFFF);   // 70% white
+  static const Color glassFillDark = Color(0x14FFFFFF);    // 8% white
+  static const double glassBlur = 15.0;
+  static const double glassRadius = 24.0; // Slightly larger for modern feel
+
   static const Color errorRed = Color(0xFFD32F2F);
   static const Color warningAmber = Color(0xFFFFA000);
   static const Color infoBlue = Color(0xFF1976D2);
@@ -34,11 +42,19 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.light,
       colorSchemeSeed: primaryGreen,
+
+      // Page transitions
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: ZoomPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
     );
 
     return base.copyWith(
       textTheme: GoogleFonts.interTextTheme(base.textTheme),
-      scaffoldBackgroundColor: surfaceLight,
+      scaffoldBackgroundColor: Colors.transparent, // Important for glass background
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -53,47 +69,50 @@ class AppTheme {
       cardTheme: CardThemeData(
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(glassRadius),
         ),
-        color: Colors.white,
+        color: glassFillLight, // Default to glass fill
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryGreen,
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
           ),
           textStyle: GoogleFonts.inter(
             fontSize: 16,
             fontWeight: FontWeight.w600,
           ),
+          elevation: 4,
+          shadowColor: primaryGreen.withValues(alpha: 0.4),
         ),
       ),
-      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: primaryGreen,
         foregroundColor: Colors.white,
-        elevation: 4,
+        elevation: 8,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white,
+        fillColor: Colors.white.withValues(alpha: 0.8), // Slightly translucent
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(color: Colors.grey.shade300),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.5)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: primaryGreen, width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
+          horizontal: 20,
+          vertical: 18,
         ),
       ),
     );
@@ -104,6 +123,13 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.dark,
       colorSchemeSeed: primaryGreen,
+       // Page transitions
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: ZoomPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
     );
 
     return base.copyWith(
@@ -111,7 +137,7 @@ class AppTheme {
         bodyColor: Colors.white,
         displayColor: Colors.white,
       ),
-      scaffoldBackgroundColor: surfaceDark,
+      scaffoldBackgroundColor: Colors.transparent, // Important for glass background
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -125,18 +151,20 @@ class AppTheme {
       cardTheme: CardThemeData(
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(glassRadius),
         ),
-        color: const Color(0xFF2A3E2A),
+        color: glassFillDark,
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: secondaryGreen,
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
           ),
+          elevation: 4,
+          shadowColor: secondaryGreen.withValues(alpha: 0.4),
         ),
       ),
     );
