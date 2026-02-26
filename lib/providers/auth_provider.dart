@@ -62,7 +62,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
         await SupabaseService.upsertUserProfile({
           'id': response.user!.id,
           'locale_code': localeCode,
-          'research_consent': true,
+          'research_consent': false,
         });
       }
 

@@ -10,7 +10,7 @@ class UserProfile {
   const UserProfile({
     required this.id,
     this.localeCode = 'en',
-    this.researchConsent = true,
+    this.researchConsent = false,
     this.climateZone,
     required this.createdAt,
     required this.updatedAt,
@@ -20,7 +20,7 @@ class UserProfile {
     return UserProfile(
       id: json['id'] as String,
       localeCode: json['locale_code'] as String? ?? 'en',
-      researchConsent: json['research_consent'] as bool? ?? true,
+      researchConsent: json['research_consent'] as bool? ?? false,
       climateZone: json['climate_zone'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),

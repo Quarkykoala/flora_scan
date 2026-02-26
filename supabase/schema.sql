@@ -12,7 +12,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS public.users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   locale_code TEXT NOT NULL DEFAULT 'en',
-  research_consent BOOLEAN NOT NULL DEFAULT true,
+  research_consent BOOLEAN NOT NULL DEFAULT false,
   climate_zone TEXT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
