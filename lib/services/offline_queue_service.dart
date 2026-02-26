@@ -77,11 +77,11 @@ class OfflineQueueService {
             s.canRetry,
       ).toList();
 
-      for (final scan in pending) {
+      await Future.wait(pending.map((scan) async {
         // Check if retry delay has elapsed
         if (scan.lastAttempt != null) {
           final elapsed = DateTime.now().difference(scan.lastAttempt!);
-          if (elapsed < scan.nextRetryDelay) continue;
+          if (elapsed < scan.nextRetryDelay) return;
         }
 
         try {
@@ -99,7 +99,7 @@ class OfflineQueueService {
           debugPrint('Scan upload failed: ${scan.clientScanId} '
               '(attempt ${scan.retryCount}): $e');
         }
-      }
+      }));
     } finally {
       _isSyncing = false;
     }
