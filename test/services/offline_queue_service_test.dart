@@ -8,9 +8,9 @@ void main() {
   group('OfflineQueueService Security Tests', () {
     late List<String> logMessages;
 
-    setUp(() {
+    setUp(() async {
       logMessages = [];
-      OfflineQueueService.clearQueue();
+      await OfflineQueueService.clearQueue();
       // Override debugPrint to capture logs
       debugPrint = (String? message, {int? wrapWidth}) {
         if (message != null) {
@@ -41,7 +41,7 @@ void main() {
       };
 
       // Act
-      OfflineQueueService.enqueue(scan);
+      await OfflineQueueService.enqueue(scan);
       // Wait for the async sync to complete (it's triggered by enqueue)
       // Since _attemptSync is fire-and-forget, we need to wait a bit or use forceSync
       await OfflineQueueService.forceSync();

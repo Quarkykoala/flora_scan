@@ -106,7 +106,7 @@ class ScanPipelineNotifier extends StateNotifier<ScanPipelineState> {
         return scanId;
       } catch (e) {
         // Upload failed — add to offline queue for retry
-        OfflineQueueService.enqueue(pending);
+        await OfflineQueueService.enqueue(pending);
         state = ScanPipelineState.queued;
         _lastError = 'Queued for upload when online';
         return null;

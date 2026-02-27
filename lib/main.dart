@@ -7,6 +7,7 @@ import 'config/app_config.dart';
 import 'config/theme.dart';
 import 'config/router.dart';
 import 'services/supabase_service.dart';
+import 'services/notification_service.dart';
 import 'services/offline_queue_service.dart';
 
 void main() async {
@@ -19,7 +20,8 @@ void main() async {
   await SupabaseService.initialize();
 
   // Initialize offline queue
-  OfflineQueueService.initialize();
+  await OfflineQueueService.initialize();
+  await NotificationService.initialize();
 
   runApp(
     const ProviderScope(

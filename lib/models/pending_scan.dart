@@ -76,6 +76,61 @@ class PendingScan {
     return Duration(seconds: seconds);
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'isar_id': isarId,
+      'client_scan_id': clientScanId,
+      'plant_id': plantId,
+      'local_image_path': localImagePath,
+      'captured_at_utc': capturedAtUtc.toIso8601String(),
+      'device_tz': deviceTz,
+      'device_platform': devicePlatform,
+      'app_version': appVersion,
+      'latitude': latitude,
+      'longitude': longitude,
+      'altitude': altitude,
+      'location_accuracy': locationAccuracy,
+      'lux_reading': luxReading,
+      'lux_source': luxSource,
+      'device_pitch_deg': devicePitchDeg,
+      'device_roll_deg': deviceRollDeg,
+      'flash_fired': flashFired,
+      'sync_status': syncStatus.name,
+      'retry_count': retryCount,
+      'last_error': lastError,
+      'last_attempt': lastAttempt?.toIso8601String(),
+    };
+  }
+
+  factory PendingScan.fromJson(Map<String, dynamic> json) {
+    return PendingScan(
+      isarId: json['isar_id'] as int?,
+      clientScanId: json['client_scan_id'] as String,
+      plantId: json['plant_id'] as String,
+      localImagePath: json['local_image_path'] as String,
+      capturedAtUtc: DateTime.parse(json['captured_at_utc'] as String),
+      deviceTz: json['device_tz'] as String,
+      devicePlatform: json['device_platform'] as String?,
+      appVersion: json['app_version'] as String? ?? '1.0.0',
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
+      altitude: (json['altitude'] as num?)?.toDouble(),
+      locationAccuracy: (json['location_accuracy'] as num?)?.toDouble(),
+      luxReading: (json['lux_reading'] as num?)?.toDouble(),
+      luxSource: json['lux_source'] as String? ?? 'unavailable',
+      devicePitchDeg: (json['device_pitch_deg'] as num?)?.toDouble(),
+      deviceRollDeg: (json['device_roll_deg'] as num?)?.toDouble(),
+      flashFired: json['flash_fired'] as bool? ?? false,
+      syncStatus:
+          SyncStatus.fromString(json['sync_status'] as String? ?? 'pendingUpload'),
+      retryCount: json['retry_count'] as int? ?? 0,
+      lastError: json['last_error'] as String?,
+      lastAttempt: json['last_attempt'] != null
+          ? DateTime.parse(json['last_attempt'] as String)
+          : null,
+    );
+  }
+
   Map<String, dynamic> toUploadJson(String userId, String imagePath) {
     return {
       'user_id': userId,

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/followup_mission.dart';
+import '../services/notification_service.dart';
 import '../services/supabase_service.dart';
 
 /// Provides pending follow-up missions for the current user.
@@ -13,7 +14,9 @@ final pendingFollowupMissionsProvider =
     userId: userId,
     status: FollowupMissionStatus.pending.name,
   );
-  return data.map((json) => FollowupMission.fromJson(json)).toList();
+  final missions = data.map((json) => FollowupMission.fromJson(json)).toList();
+  await NotificationService.syncMissionReminders(missions);
+  return missions;
 });
 
 /// Provides follow-up missions for a plant.
@@ -26,5 +29,7 @@ final plantFollowupMissionsProvider = FutureProvider.autoDispose
     userId: userId,
     plantId: plantId,
   );
-  return data.map((json) => FollowupMission.fromJson(json)).toList();
+  final missions = data.map((json) => FollowupMission.fromJson(json)).toList();
+  await NotificationService.syncMissionReminders(missions);
+  return missions;
 });
