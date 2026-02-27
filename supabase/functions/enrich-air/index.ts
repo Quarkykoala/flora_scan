@@ -9,6 +9,10 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 serve(async (req: Request) => {
   const corsHeaders = getCorsHeaders(req.headers.get("Origin"));
 
@@ -190,7 +194,7 @@ serve(async (req: Request) => {
           .update({
             status: "failed",
             finished_at: new Date().toISOString(),
-            error_message: error.message ?? "Unknown error",
+            error_message: errorMessage(error) || "Unknown error",
           })
           .eq("scan_id", scan_id)
           .eq("job_type", "enrich_air");
@@ -200,7 +204,7 @@ serve(async (req: Request) => {
     }
 
     return new Response(
-      JSON.stringify({ error: error.message ?? "Internal server error" }),
+      JSON.stringify({ error: errorMessage(error) || "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

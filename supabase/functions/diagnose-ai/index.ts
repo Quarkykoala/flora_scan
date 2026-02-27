@@ -6,6 +6,10 @@ import { validateAuthHeader } from "../_shared/security.ts";
 const PROMPT_VERSION = "1.1.0";
 const AI_MODEL_NAME = "gemini-2.0-flash";
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 type Recommendation = {
   recommendation_code: string;
   recommendation_localized: string;
@@ -403,7 +407,7 @@ serve(async (req: Request) => {
         .from("scans")
         .update({
           processing_status: "failed",
-          processing_error: error.message ?? "Unknown error",
+          processing_error: errorMessage(error) || "Unknown error",
         })
         .eq("id", scanId);
 
@@ -412,14 +416,14 @@ serve(async (req: Request) => {
         .update({
           status: "failed",
           finished_at: new Date().toISOString(),
-          error_message: error.message ?? "Unknown error",
+          error_message: errorMessage(error) || "Unknown error",
         })
         .eq("scan_id", scanId)
         .eq("job_type", "diagnose_ai");
     }
 
     return new Response(
-      JSON.stringify({ error: error.message ?? "Internal server error" }),
+      JSON.stringify({ error: errorMessage(error) || "Internal server error" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

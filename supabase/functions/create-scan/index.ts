@@ -45,6 +45,10 @@ function isValidDate(dateString: string): boolean {
   return !isNaN(date.getTime());
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function triggerJob(
   supabaseUrl: string,
   supabaseServiceKey: string,
@@ -79,8 +83,8 @@ serve(async (req: Request) => {
     const authHeader = req.headers.get("Authorization");
 
     // Validate Authorization header
-    const authError = validateAuthHeader(req, corsHeaders);
-    if (authError) return authError;
+    const authValidationError = validateAuthHeader(req, corsHeaders);
+    if (authValidationError) return authValidationError;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -88,11 +92,11 @@ serve(async (req: Request) => {
 
     // Create client with user's auth token for user identification
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
+      global: { headers: { Authorization: authHeader ?? "" } },
     });
 
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
-    if (authError || !user) {
+    const { data: { user }, error: userAuthError } = await userClient.auth.getUser();
+    if (userAuthError || !user) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -336,7 +340,7 @@ serve(async (req: Request) => {
   } catch (error) {
     console.error("create-scan error:", error);
     return new Response(
-      JSON.stringify({ error: error.message ?? "Internal server error" }),
+      JSON.stringify({ error: errorMessage(error) || "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

@@ -231,7 +231,7 @@ class DiagnosisResultScreen extends ConsumerWidget {
                   padding: EdgeInsets.symmetric(vertical: 8),
                   child: LinearProgressIndicator(minHeight: 3),
                 ),
-                error: (_, _) => const GlassmorphicCard(
+                error: (error, stackTrace) => const GlassmorphicCard(
                   padding: EdgeInsets.all(16),
                   child: Align(
                     alignment: Alignment.centerLeft,
@@ -341,7 +341,7 @@ class DiagnosisResultScreen extends ConsumerWidget {
                   padding: EdgeInsets.symmetric(vertical: 8),
                   child: LinearProgressIndicator(minHeight: 3),
                 ),
-                error: (_, _) => const GlassmorphicCard(
+                error: (error, stackTrace) => const GlassmorphicCard(
                   padding: EdgeInsets.all(16),
                   child: Align(
                     alignment: Alignment.centerLeft,
@@ -549,7 +549,7 @@ class DiagnosisResultScreen extends ConsumerWidget {
                   ],
                 ),
               ),
-            ),
+            );
           },
         );
       },

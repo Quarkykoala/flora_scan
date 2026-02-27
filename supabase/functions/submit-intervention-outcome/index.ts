@@ -7,6 +7,10 @@ const VALID_ADHERENCE = new Set(["fully", "partially", "not_done", "unknown"]);
 const VALID_OUTCOME = new Set(["improved", "unchanged", "worse", "uncertain"]);
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 serve(async (req: Request) => {
   const corsHeaders = getCorsHeaders(req.headers.get("Origin"));
 
@@ -224,7 +228,7 @@ serve(async (req: Request) => {
   } catch (error) {
     console.error("submit-intervention-outcome error:", error);
     return new Response(
-      JSON.stringify({ error: error.message ?? "Internal server error" }),
+      JSON.stringify({ error: errorMessage(error) || "Internal server error" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

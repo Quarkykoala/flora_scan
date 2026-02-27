@@ -45,7 +45,7 @@ class NotificationService {
         ?.requestExactAlarmsPermission();
     await _plugin
         .resolvePlatformSpecificImplementation<
-          DarwinFlutterLocalNotificationsPlugin
+          IOSFlutterLocalNotificationsPlugin
         >()
         ?.requestPermissions(alert: true, badge: true, sound: true);
 
@@ -77,8 +77,6 @@ class NotificationService {
       dueTz,
       details,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
       payload: mission.id,
     );
   }

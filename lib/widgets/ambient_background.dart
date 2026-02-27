@@ -60,7 +60,6 @@ class _AmbientBackgroundState extends State<AmbientBackground>
           const Color(0xFF004D40), // Deep Teal
         ];
       case AmbientMood.calm:
-      default:
         return [
           AppTheme.surfaceLight,
           const Color(0xFFE0F2F1), // Very Light Teal

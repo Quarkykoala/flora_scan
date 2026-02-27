@@ -3,7 +3,6 @@ import 'package:flora_scan/models/user_profile.dart';
 
 void main() {
   group('UserProfile', () {
-    final now = DateTime.now();
     // Truncate to microseconds to avoid precision issues during JSON roundtrip if needed,
     // though UserProfile.fromJson uses DateTime.parse which handles ISO strings.
     // For direct comparison, we'll use a fixed time.
