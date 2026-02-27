@@ -1,6 +1,6 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 
 /// Image processing utilities for EXIF stripping and quality scoring.
@@ -16,8 +16,9 @@ class ImageUtils {
 
       // Re-encode without EXIF data
       return Uint8List.fromList(img.encodeJpg(image, quality: 92));
-    } catch (_) {
+    } catch (e) {
       // If processing fails, return original bytes
+      debugPrint('Failed to strip EXIF metadata: $e');
       return imageBytes;
     }
   }
@@ -55,7 +56,8 @@ class ImageUtils {
         brightnessScore: brightnessScore,
         framingScore: framingScore,
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Failed to assess image quality: $e');
       return const ImageQualityResult(
         overallScore: 0.5,
         blurScore: 0.5,
@@ -160,7 +162,8 @@ class ImageUtils {
       final image = img.decodeImage(imageBytes);
       if (image == null) return null;
       return ImageDimensions(width: image.width, height: image.height);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Failed to get image dimensions: $e');
       return null;
     }
   }
