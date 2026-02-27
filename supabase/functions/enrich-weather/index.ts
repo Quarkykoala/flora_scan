@@ -98,7 +98,7 @@ serve(async (req: Request) => {
     }
 
     const weatherData = await weatherResponse.json();
-    const hourly = weatherData.hourly;
+    const hourly = weatherData?.hourly;
 
     if (!hourly || !hourly.time || hourly.time.length === 0) {
       throw new Error("No hourly data returned from Open-Meteo");
