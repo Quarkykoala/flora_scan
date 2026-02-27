@@ -1,25 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../config/theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/auth_provider.dart';
-import '../../services/offline_queue_service.dart';
+import '../../providers/locale_provider.dart';
 import '../../providers/scan_provider.dart';
+import '../../services/offline_queue_service.dart';
 
-/// Supported locales with display names.
 const Map<String, String> supportedLocales = {
   'en': 'English',
-  'es': 'Español',
-  'fr': 'Français',
+  'es': 'Spanish',
+  'fr': 'French',
   'de': 'Deutsch',
-  'pt': 'Português',
-  'zh': '中文',
-  'ja': '日本語',
-  'ko': '한국어',
-  'ar': 'العربية',
-  'hi': 'हिन्दी',
-  'ru': 'Русский',
+  'pt': 'Portuguese',
+  'zh': 'Chinese',
+  'ja': 'Japanese',
+  'ko': 'Korean',
+  'ar': 'Arabic',
+  'hi': 'Hindi',
+  'ru': 'Russian',
   'it': 'Italiano',
 };
 
@@ -28,18 +28,21 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final userProfileAsync = ref.watch(userProfileProvider);
+    final currentAppLocale = ref.watch(appLocaleProvider);
     final queueSize = ref.watch(offlineQueueSizeProvider);
+    final selectedLocaleCode =
+        currentAppLocale?.languageCode ?? userProfileAsync.valueOrNull?.localeCode ?? 'en';
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: Text(l10n.settings),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Account section
-          _SectionHeader(title: 'Account'),
+          const _SectionHeader(title: 'Account'),
           Card(
             child: Column(
               children: [
@@ -57,8 +60,8 @@ class SettingsScreen extends ConsumerWidget {
                       backgroundColor: AppTheme.primaryGreen,
                       child: Icon(Icons.person, color: Colors.white),
                     ),
-                    title: Text(profile?.id.substring(0, 8) ?? 'Unknown'),
-                    subtitle: Text('Locale: ${profile?.localeCode ?? 'en'}'),
+                    title: Text(profile?.id.substring(0, 8) ?? 'Guest'),
+                    subtitle: Text('Locale: $selectedLocaleCode'),
                   ),
                 ),
               ],
@@ -66,73 +69,57 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
-          // Language section
-          _SectionHeader(title: 'Language'),
+          _SectionHeader(title: l10n.language),
           Card(
             child: ListTile(
               leading: const Icon(Icons.language),
-              title: const Text('App Language'),
-              subtitle: Text(
-                supportedLocales[
-                        userProfileAsync.valueOrNull?.localeCode ?? 'en'] ??
-                    'English',
-              ),
+              title: Text(l10n.language),
+              subtitle: Text(supportedLocales[selectedLocaleCode] ?? 'English'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _showLanguagePicker(context, ref),
             ),
           ),
           const SizedBox(height: 16),
 
-          // Privacy section
-          _SectionHeader(title: 'Privacy & Data'),
+          const _SectionHeader(title: 'Privacy & Data'),
           Card(
             child: Column(
               children: [
                 SwitchListTile(
                   secondary: const Icon(Icons.science),
-                  title: const Text('Research Consent'),
-                  subtitle: const Text(
-                    'Allow anonymized data for research',
-                  ),
-                  value:
-                      userProfileAsync.valueOrNull?.researchConsent ?? true,
+                  title: Text(l10n.researchConsent),
+                  subtitle: Text(l10n.researchConsentSubtitle),
+                  value: userProfileAsync.valueOrNull?.researchConsent ?? true,
                   onChanged: (value) {
-                    ref
-                        .read(authNotifierProvider.notifier)
-                        .updateResearchConsent(value);
+                    ref.read(authNotifierProvider.notifier).updateResearchConsent(value);
                     ref.invalidate(userProfileProvider);
                   },
                 ),
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.privacy_tip),
-                  title: const Text('Privacy Policy'),
+                  title: Text(l10n.privacyPolicy),
                   trailing: const Icon(Icons.open_in_new, size: 18),
-                  onTap: () {
-                    // Open privacy policy
-                  },
+                  onTap: () {},
                 ),
               ],
             ),
           ),
           const SizedBox(height: 16),
 
-          // Sync section
-          _SectionHeader(title: 'Sync & Storage'),
+          const _SectionHeader(title: 'Sync & Storage'),
           Card(
             child: Column(
               children: [
                 ListTile(
                   leading: const Icon(Icons.cloud_upload),
-                  title: const Text('Pending Uploads'),
+                  title: Text(l10n.pendingUploads),
                   trailing: Text(
                     '$queueSize',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: queueSize > 0
-                          ? AppTheme.warningAmber
-                          : AppTheme.primaryGreen,
+                      color: queueSize > 0 ? AppTheme.warningAmber : AppTheme.primaryGreen,
                     ),
                   ),
                 ),
@@ -140,7 +127,7 @@ class SettingsScreen extends ConsumerWidget {
                   const Divider(height: 1),
                   ListTile(
                     leading: const Icon(Icons.sync),
-                    title: const Text('Force Sync Now'),
+                    title: Text(l10n.forceSyncNow),
                     onTap: () {
                       OfflineQueueService.forceSync();
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -154,8 +141,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
-          // About section
-          _SectionHeader(title: 'About'),
+          const _SectionHeader(title: 'About'),
           Card(
             child: Column(
               children: [
@@ -175,33 +161,13 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 24),
-
-          // Sign out
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () async {
-                await ref.read(authNotifierProvider.notifier).signOut();
-                if (context.mounted) context.go('/login');
-              },
-              icon: const Icon(Icons.logout, color: AppTheme.errorRed),
-              label: const Text(
-                'Sign Out',
-                style: TextStyle(color: AppTheme.errorRed),
-              ),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppTheme.errorRed),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-            ),
-          ),
-          const SizedBox(height: 40),
         ],
       ),
     );
   }
 
   void _showLanguagePicker(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     showModalBottomSheet(
       context: context,
       builder: (ctx) => ListView(
@@ -210,7 +176,7 @@ class SettingsScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.all(16),
             child: Text(
-              'Select Language',
+              l10n.language,
               style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -220,12 +186,13 @@ class SettingsScreen extends ConsumerWidget {
             return ListTile(
               title: Text(entry.value),
               subtitle: Text(entry.key),
-              onTap: () {
-                ref
-                    .read(authNotifierProvider.notifier)
-                    .updateLocale(entry.key);
+              onTap: () async {
+                await ref.read(appLocaleProvider.notifier).setLocale(entry.key);
+                await ref.read(authNotifierProvider.notifier).updateLocale(entry.key);
                 ref.invalidate(userProfileProvider);
-                Navigator.pop(ctx);
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                }
               },
             );
           }),

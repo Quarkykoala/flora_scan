@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../l10n/app_localizations.dart';
 
 import '../screens/auth/login_screen.dart';
 import '../screens/home/home_screen.dart';
@@ -90,26 +91,26 @@ class HomeShell extends StatelessWidget {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _calculateSelectedIndex(context),
         onDestinationSelected: (index) => _onItemTapped(index, context),
-        destinations: const [
+        destinations: [
           NavigationDestination(
             icon: Icon(Icons.eco_outlined),
             selectedIcon: Icon(Icons.eco),
-            label: 'Plants',
+            label: AppLocalizations.of(context)!.plants,
           ),
           NavigationDestination(
             icon: Icon(Icons.document_scanner_outlined),
             selectedIcon: Icon(Icons.document_scanner),
-            label: 'Scan',
+            label: AppLocalizations.of(context)!.scan,
           ),
           NavigationDestination(
             icon: Icon(Icons.history_outlined),
             selectedIcon: Icon(Icons.history),
-            label: 'History',
+            label: AppLocalizations.of(context)!.history,
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),
             selectedIcon: Icon(Icons.settings),
-            label: 'Settings',
+            label: AppLocalizations.of(context)!.settings,
           ),
         ],
       ),

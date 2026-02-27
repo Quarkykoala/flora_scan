@@ -9,6 +9,7 @@ import 'config/app_config.dart';
 import 'config/theme.dart';
 import 'config/router.dart';
 import 'providers/followup_mission_provider.dart';
+import 'providers/locale_provider.dart';
 import 'services/supabase_service.dart';
 import 'services/notification_service.dart';
 import 'services/offline_queue_service.dart';
@@ -65,6 +66,7 @@ class _FloraScanAppState extends ConsumerState<FloraScanApp>
   @override
   Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
+    final locale = ref.watch(appLocaleProvider);
 
     return MaterialApp.router(
       title: 'FloraScan',
@@ -72,6 +74,7 @@ class _FloraScanAppState extends ConsumerState<FloraScanApp>
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
+      locale: locale,
       routerConfig: router,
       localizationsDelegates: const [
         AppLocalizations.delegate,

@@ -23,35 +23,69 @@ class GlassmorphicCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = backgroundColor ??
+        (isDark
+            ? Colors.white.withValues(alpha: 0.10)
+            : Colors.white.withValues(alpha: 0.20));
+    final resolvedBorderColor = borderColor ??
+        (isDark
+            ? Colors.white.withValues(alpha: 0.25)
+            : Colors.white.withValues(alpha: 0.50));
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-        child: Container(
-          padding: padding,
+        child: DecoratedBox(
           decoration: BoxDecoration(
-            color: backgroundColor ??
-                (isDark
-                    ? Colors.white.withValues(alpha: 0.08)
-                    : Colors.white.withValues(alpha: 0.7)),
             borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(
-              color: borderColor ??
-                  (isDark
-                      ? Colors.white.withValues(alpha: 0.15)
-                      : Colors.white.withValues(alpha: 0.4)),
-              width: 1.5,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                baseColor.withValues(
+                  alpha: ((baseColor.a + 0.18).clamp(0.0, 1.0) as num).toDouble(),
+                ),
+                baseColor,
+              ],
             ),
+            border: Border.all(color: resolvedBorderColor, width: 1.2),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
+                color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.08),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
               ),
             ],
           ),
-          child: child,
+          child: Stack(
+            children: [
+              Positioned(
+                top: -48,
+                left: -24,
+                right: -24,
+                height: 120,
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.white.withValues(alpha: isDark ? 0.12 : 0.28),
+                          Colors.white.withValues(alpha: 0.0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: padding,
+                child: child,
+              ),
+            ],
+          ),
         ),
       ),
     );

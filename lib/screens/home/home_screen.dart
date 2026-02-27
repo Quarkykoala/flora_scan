@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import '../../l10n/app_localizations.dart';
 
 import '../../config/theme.dart';
 import '../../models/plant.dart';
@@ -15,6 +16,7 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final plantsAsync = ref.watch(plantsProvider);
     final queueSize = ref.watch(offlineQueueSizeProvider);
 
@@ -26,7 +28,7 @@ class HomeScreen extends ConsumerWidget {
             children: [
               const Icon(Icons.eco, color: AppTheme.primaryGreen),
               const SizedBox(width: 8),
-              const Text('FloraScan'),
+              Text(l10n.appTitle),
             ],
           ),
           actions: [
@@ -68,16 +70,16 @@ class HomeScreen extends ConsumerWidget {
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () => ref.invalidate(plantsProvider),
-                  child: const Text('Retry'),
+                  child: Text(l10n.retry),
                 ),
               ],
             ),
           ),
           data: (plants) {
             if (plants.isEmpty) {
-              return _buildEmptyState(context);
+              return _buildEmptyState(context, l10n);
             }
-            return _buildPlantList(context, ref, plants);
+            return _buildPlantList(context, ref, plants, l10n);
           },
         ),
         floatingActionButton: ScaleTransition(
@@ -85,19 +87,21 @@ class HomeScreen extends ConsumerWidget {
           child: FloatingActionButton.extended(
             onPressed: () => context.push('/plant/add'),
             icon: const Icon(Icons.add),
-            label: const Text('Add Plant'),
+            label: Text(l10n.addPlant),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildEmptyState(BuildContext context) {
+  Widget _buildEmptyState(BuildContext context, AppLocalizations l10n) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: GlassmorphicCard(
           padding: const EdgeInsets.all(32),
+          blur: 24,
+          backgroundColor: Colors.white.withValues(alpha: 0.22),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -115,7 +119,7 @@ class HomeScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 24),
               Text(
-                'Welcome to FloraScan!',
+                l10n.welcomeTitle,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -123,7 +127,7 @@ class HomeScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                'Add your first plant to start scanning and get AI-powered health diagnostics.',
+                l10n.welcomeSubtitle,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: Colors.black54,
                     ),
@@ -133,7 +137,7 @@ class HomeScreen extends ConsumerWidget {
               ElevatedButton.icon(
                 onPressed: () => context.push('/plant/add'),
                 icon: const Icon(Icons.add),
-                label: const Text('Add Your First Plant'),
+                label: Text(l10n.addPlant),
               ),
             ],
           ),
@@ -143,7 +147,7 @@ class HomeScreen extends ConsumerWidget {
   }
 
   Widget _buildPlantList(
-      BuildContext context, WidgetRef ref, List<Plant> plants) {
+      BuildContext context, WidgetRef ref, List<Plant> plants, AppLocalizations l10n) {
     return RefreshIndicator(
       onRefresh: () async => ref.invalidate(plantsProvider),
       child: AnimationLimiter(
@@ -158,7 +162,7 @@ class HomeScreen extends ConsumerWidget {
               child: SlideAnimation(
                 verticalOffset: 50.0,
                 child: FadeInAnimation(
-                  child: _PlantCard(plant: plant),
+                  child: _PlantCard(plant: plant, l10n: l10n),
                 ),
               ),
             );
@@ -171,8 +175,9 @@ class HomeScreen extends ConsumerWidget {
 
 class _PlantCard extends StatelessWidget {
   final Plant plant;
+  final AppLocalizations l10n;
 
-  const _PlantCard({required this.plant});
+  const _PlantCard({required this.plant, required this.l10n});
 
   @override
   Widget build(BuildContext context) {
@@ -281,7 +286,7 @@ class _PlantCard extends StatelessWidget {
                     color: AppTheme.primaryGreen,
                     onPressed: () =>
                         context.push('/scan?plantId=${plant.id}'),
-                    tooltip: 'Scan plant',
+                    tooltip: l10n.scanPlant,
                   ),
                 ),
               ],
