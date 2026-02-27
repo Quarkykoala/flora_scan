@@ -23,6 +23,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   CameraController? _cameraController;
   bool _isCameraReady = false;
   bool _isCapturing = false;
+  String? _cameraErrorMessage;
   String? _selectedPlantId;
   List<CameraDescription> _cameras = [];
 
@@ -34,9 +35,18 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   }
 
   Future<void> _initializeCamera() async {
+    setState(() {
+      _cameraErrorMessage = null;
+      _isCameraReady = false;
+    });
     try {
       _cameras = await availableCameras();
-      if (_cameras.isEmpty) return;
+      if (_cameras.isEmpty) {
+        setState(() {
+          _cameraErrorMessage = 'No camera found on this device/browser.';
+        });
+        return;
+      }
 
       _cameraController = CameraController(
         _cameras.first,
@@ -51,6 +61,12 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       }
     } catch (e) {
       debugPrint('Camera initialization failed: $e');
+      if (mounted) {
+        setState(() {
+          _cameraErrorMessage =
+              'Camera access is unavailable. Grant camera permission and try again.';
+        });
+      }
     }
   }
 
@@ -113,6 +129,32 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
             Positioned.fill(
               child: CameraPreview(_cameraController!),
             )
+          else if (_cameraErrorMessage != null)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.camera_alt_outlined, color: Colors.white70, size: 48),
+                    const SizedBox(height: 16),
+                    Text(
+                      _cameraErrorMessage!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                    const SizedBox(height: 16),
+                    OutlinedButton(
+                      onPressed: _initializeCamera,
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.white54),
+                      ),
+                      child: const Text('Retry', style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+              ),
+            )
           else
             const Center(
               child: Column(
@@ -140,7 +182,13 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                   children: [
                     IconButton(
                       icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: () => context.pop(),
+                      onPressed: () {
+                        if (context.canPop()) {
+                          context.pop();
+                          return;
+                        }
+                        context.go('/');
+                      },
                     ),
                     const Expanded(
                       child: Text(
@@ -294,14 +342,14 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
                   // Capture button
                   GestureDetector(
-                    onTap: _isCapturing ? null : _captureAndScan,
+                    onTap: (_isCapturing || !_isCameraReady) ? null : _captureAndScan,
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       width: 80,
                       height: 80,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: _isCapturing
+                        color: (_isCapturing || !_isCameraReady)
                             ? Colors.grey
                             : Colors.white.withValues(alpha: 0.2), // Glassy ring
                         border: Border.all(
@@ -315,7 +363,9 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                           height: 64,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: _isCapturing ? Colors.grey.shade400 : Colors.white,
+                            color: (_isCapturing || !_isCameraReady)
+                                ? Colors.grey.shade400
+                                : Colors.white,
                           ),
                           child: _isCapturing
                               ? const SizedBox()
