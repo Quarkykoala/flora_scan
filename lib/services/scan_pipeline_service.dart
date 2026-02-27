@@ -99,20 +99,26 @@ class ScanPipelineService {
     final sha256 = ImageUtils.computeSha256(cleanBytes);
     final dimensions = await ImageUtils.getImageDimensions(cleanBytes);
     final quality = await ImageUtils.assessQuality(cleanBytes);
+    final mimeType = ImageUtils.getMimeType(cleanBytes);
+    final extension = mimeType.split('/').last;
 
     // Upload image to storage
     final imagePath = await SupabaseService.uploadImage(
       userId: userId,
       scanId: pending.clientScanId,
       imageBytes: cleanBytes,
+      extension: extension == 'octet-stream' ? 'jpg' : extension,
+      contentType: mimeType,
     );
 
     // Compute geohash if location available
     String? geohash6;
-    if (pending.latitude != null && pending.longitude != null) {
+    final lat = pending.latitude;
+    final lon = pending.longitude;
+    if (lat != null && lon != null) {
       geohash6 = Geohash.encode(
-        pending.latitude!,
-        pending.longitude!,
+        lat,
+        lon,
         precision: 6,
       );
     }
@@ -125,10 +131,8 @@ class ScanPipelineService {
       'image_height': dimensions?.height,
       'image_quality_score': quality.overallScore,
       'geohash_6': geohash6,
-      if (pending.latitude != null)
-        'lat_rounded': Geohash.roundCoordinate(pending.latitude!),
-      if (pending.longitude != null)
-        'lon_rounded': Geohash.roundCoordinate(pending.longitude!),
+      if (lat != null) 'lat_rounded': Geohash.roundCoordinate(lat),
+      if (lon != null) 'lon_rounded': Geohash.roundCoordinate(lon),
     };
 
     final scanResult = await SupabaseService.createScan(scanData);

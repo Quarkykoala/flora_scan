@@ -54,4 +54,41 @@ class CareEvent {
       'occurred_at_utc': occurredAtUtc.toIso8601String(),
     };
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+
+    return other is CareEvent &&
+        other.id == id &&
+        other.plantId == plantId &&
+        other.userId == userId &&
+        other.eventType == eventType &&
+        // Use map equality for eventValue if needed, but deep equality is expensive.
+        // Assuming simple JSON structures, standard equality might suffice or use DeepCollectionEquality from package:collection.
+        // For now, we'll rely on identity/standard equality as eventValue is nullable and potentially simple.
+        // If strict content equality is needed, `const DeepCollectionEquality().equals` should be used.
+        // Given the constraints and typical use, we'll check simplistic equality.
+        other.eventValue.toString() == eventValue.toString() &&
+        other.occurredAtUtc == occurredAtUtc &&
+        other.createdAt == createdAt;
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(
+      id,
+      plantId,
+      userId,
+      eventType,
+      eventValue.toString(),
+      occurredAtUtc,
+      createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return 'CareEvent(id: $id, plantId: $plantId, userId: $userId, eventType: $eventType, eventValue: $eventValue, occurredAtUtc: $occurredAtUtc, createdAt: $createdAt)';
+  }
 }

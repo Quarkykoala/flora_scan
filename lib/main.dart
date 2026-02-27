@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
 
+import 'config/app_config.dart';
 import 'config/theme.dart';
 import 'config/router.dart';
 import 'services/supabase_service.dart';
@@ -10,6 +11,9 @@ import 'services/offline_queue_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Validate configuration before proceeding
+  AppConfig.validate();
 
   // Initialize Supabase
   await SupabaseService.initialize();
