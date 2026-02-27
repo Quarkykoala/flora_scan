@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { validateAuthHeader } from "../_shared/security.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,19 +36,28 @@ interface CreateScanRequest {
   telemetry_completeness_score?: number;
 }
 
+// Validation helpers
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const GEOHASH_REGEX = /^[0-9b-z]+$/; // Base32 geohash (excluding a, i, l, o)
+
+function isValidDate(dateString: string): boolean {
+  const date = new Date(dateString);
+  return !isNaN(date.getTime());
+}
+
 serve(async (req: Request) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("Origin"));
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "Missing authorization header" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+
+    // Validate Authorization header
+    const authError = validateAuthHeader(req, corsHeaders);
+    if (authError) return authError;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -70,13 +81,77 @@ serve(async (req: Request) => {
 
     const body: CreateScanRequest = await req.json();
 
-    // Validate required fields
+    // -------------------------------------------------------------------------
+    // SECURITY FIX: Strict Input Validation
+    // -------------------------------------------------------------------------
+
+    // 1. Required fields presence check
     if (!body.client_scan_id || !body.plant_id || !body.captured_at_utc || !body.image_path) {
       return new Response(
         JSON.stringify({ error: "Missing required fields: client_scan_id, plant_id, captured_at_utc, image_path" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // 2. UUID Validation
+    if (!UUID_REGEX.test(body.client_scan_id)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid format for client_scan_id (must be UUID)" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (!UUID_REGEX.test(body.plant_id)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid format for plant_id (must be UUID)" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // 3. Date Validation
+    if (!isValidDate(body.captured_at_utc)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid format for captured_at_utc (must be ISO 8601 date)" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // 4. Image Path Validation (basic sanity check)
+    if (typeof body.image_path !== "string" || body.image_path.trim().length === 0 || body.image_path.includes("..")) {
+       return new Response(
+        JSON.stringify({ error: "Invalid image_path format" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // 5. Type Validation for Optional Numeric Fields
+    const numericFields = [
+      "image_width", "image_height", "lat_precise", "lon_precise",
+      "lat_rounded", "lon_rounded", "altitude_meters", "location_accuracy_meters",
+      "lux_reading", "device_pitch_deg", "device_roll_deg",
+      "image_quality_score", "telemetry_completeness_score"
+    ];
+
+    for (const field of numericFields) {
+      // @ts-ignore: dynamic access
+      if (body[field] !== undefined && body[field] !== null && typeof body[field] !== "number") {
+        return new Response(
+          JSON.stringify({ error: `Invalid type for ${field} (must be a number)` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // 6. Geohash Validation (if present)
+    if (body.geohash_6 && (typeof body.geohash_6 !== "string" || !GEOHASH_REGEX.test(body.geohash_6))) {
+       return new Response(
+        JSON.stringify({ error: "Invalid format for geohash_6" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // End Validation
+    // -------------------------------------------------------------------------
 
     // Check research consent for precise coordinates
     const { data: userProfile } = await serviceClient

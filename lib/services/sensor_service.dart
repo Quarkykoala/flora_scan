@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:math';
+
+import 'package:flutter/foundation.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
 /// Device sensor capture result.
@@ -53,8 +55,8 @@ class SensorService {
         const Duration(seconds: 2),
         onTimeout: () => subscription?.cancel(),
       );
-    } catch (_) {
-      // Sensor unavailable — degrade gracefully
+    } catch (e) {
+      debugPrint('Error capturing accelerometer: $e');
     }
 
     // TODO: Implement actual light sensor reading using platform channels or light_sensor package.

@@ -50,4 +50,27 @@ class UserProfile {
       updatedAt: DateTime.now(),
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+
+    return other is UserProfile &&
+        other.id == id &&
+        other.localeCode == localeCode &&
+        other.researchConsent == researchConsent &&
+        other.climateZone == climateZone &&
+        other.createdAt == createdAt &&
+        other.updatedAt == updatedAt;
+  }
+
+  @override
+  int get hashCode {
+    return id.hashCode ^
+        localeCode.hashCode ^
+        researchConsent.hashCode ^
+        climateZone.hashCode ^
+        createdAt.hashCode ^
+        updatedAt.hashCode;
+  }
 }

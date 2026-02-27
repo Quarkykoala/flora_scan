@@ -6,14 +6,8 @@ class AppConfig {
   AppConfig._();
 
   // Supabase
-  static const String supabaseUrl = String.fromEnvironment(
-    'SUPABASE_URL',
-    defaultValue: 'https://your-project.supabase.co',
-  );
-  static const String supabaseAnonKey = String.fromEnvironment(
-    'SUPABASE_ANON_KEY',
-    defaultValue: 'your-anon-key',
-  );
+  static const String supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+  static const String supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 
   // Storage
   static const String imageBucket = 'plant-scans';
@@ -36,4 +30,19 @@ class AppConfig {
 
   // App version for telemetry
   static const String appVersion = '1.0.0';
+
+  /// Validates that all required configuration variables are present.
+  /// Throws an [ArgumentError] if any required configuration is missing.
+  static void validate() {
+    if (supabaseUrl.isEmpty) {
+      throw ArgumentError(
+        'SUPABASE_URL is missing. Please provide it using --dart-define=SUPABASE_URL=...',
+      );
+    }
+    if (supabaseAnonKey.isEmpty) {
+      throw ArgumentError(
+        'SUPABASE_ANON_KEY is missing. Please provide it using --dart-define=SUPABASE_ANON_KEY=...',
+      );
+    }
+  }
 }

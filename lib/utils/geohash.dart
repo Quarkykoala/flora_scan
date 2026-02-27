@@ -43,6 +43,53 @@ class Geohash {
     return buffer.toString();
   }
 
+  /// Decode a geohash string into latitude/longitude with error margin.
+  static Map<String, double> decode(String geohash) {
+    if (geohash.isEmpty) {
+      throw ArgumentError('Geohash cannot be empty');
+    }
+
+    double minLat = -90.0, maxLat = 90.0;
+    double minLon = -180.0, maxLon = 180.0;
+    bool isLon = true;
+
+    for (int i = 0; i < geohash.length; i++) {
+      final char = geohash[i];
+      final index = _base32.indexOf(char);
+
+      if (index == -1) {
+        throw FormatException('Invalid character in geohash: $char');
+      }
+
+      for (int bit = 0; bit < 5; bit++) {
+        final mask = 1 << (4 - bit);
+        if (isLon) {
+          final mid = (minLon + maxLon) / 2;
+          if ((index & mask) != 0) {
+            minLon = mid;
+          } else {
+            maxLon = mid;
+          }
+        } else {
+          final mid = (minLat + maxLat) / 2;
+          if ((index & mask) != 0) {
+            minLat = mid;
+          } else {
+            maxLat = mid;
+          }
+        }
+        isLon = !isLon;
+      }
+    }
+
+    return {
+      'latitude': (minLat + maxLat) / 2,
+      'longitude': (minLon + maxLon) / 2,
+      'latitudeError': (maxLat - minLat) / 2,
+      'longitudeError': (maxLon - minLon) / 2,
+    };
+  }
+
   /// Round coordinate to ~1km precision for privacy.
   static double roundCoordinate(double value, {int decimals = 2}) {
     final factor = _pow10(decimals);
