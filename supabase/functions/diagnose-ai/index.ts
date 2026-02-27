@@ -346,7 +346,8 @@ serve(async (req: Request) => {
         const { data: existingMissions, error: existingMissionsError } = await serviceClient
           .from("followup_missions")
           .select("intervention_id")
-          .in("intervention_id", interventionIds);
+          .in("intervention_id", interventionIds)
+          .eq("mission_type", "log_outcome");
 
         if (existingMissionsError) throw existingMissionsError;
 

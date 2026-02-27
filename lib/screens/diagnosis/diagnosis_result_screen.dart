@@ -287,11 +287,17 @@ class DiagnosisResultScreen extends ConsumerWidget {
                                     : () => _showOutcomeBottomSheet(
                                           context: context,
                                           recommendation: recommendation,
-                                          onSubmit: (outcomeStatus) async {
+                                          onSubmit: (outcomeDraft) async {
                                             await outcomeNotifier.submitOutcome(
                                               interventionId: recommendation.id,
-                                              adherenceStatus: AdherenceStatus.fully,
-                                              outcomeStatus: outcomeStatus,
+                                              adherenceStatus:
+                                                  outcomeDraft.adherenceStatus,
+                                              outcomeStatus:
+                                                  outcomeDraft.outcomeStatus,
+                                              adherenceNotes: outcomeDraft.notes,
+                                              outcomeNotes: outcomeDraft.notes,
+                                              outcomeConfidence:
+                                                  outcomeDraft.outcomeConfidence,
                                             );
                                             ref.invalidate(
                                                 plantFollowupMissionsProvider(scan.plantId));
@@ -426,59 +432,129 @@ class DiagnosisResultScreen extends ConsumerWidget {
   Future<void> _showOutcomeBottomSheet({
     required BuildContext context,
     required InterventionRecommendation recommendation,
-    required Future<void> Function(OutcomeStatus) onSubmit,
+    required Future<void> Function(_OutcomeDraft) onSubmit,
   }) async {
+    final notesController = TextEditingController();
+    var selectedOutcome = OutcomeStatus.improved;
+    var selectedAdherence = AdherenceStatus.fully;
+    var includeConfidence = false;
+    var confidence = 0.8;
+
     await showModalBottomSheet<void>(
       context: context,
       builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Capture outcome',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                const SizedBox(height: 8),
-                Text(recommendation.recommendationLocalized),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _OutcomeChoiceButton(
-                      label: 'Improved',
-                      icon: Icons.trending_up,
-                      onTap: () => onSubmit(OutcomeStatus.improved),
+                    Text(
+                      'Capture outcome',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
                     ),
-                    _OutcomeChoiceButton(
-                      label: 'Unchanged',
-                      icon: Icons.trending_flat,
-                      onTap: () => onSubmit(OutcomeStatus.unchanged),
+                    const SizedBox(height: 8),
+                    Text(recommendation.recommendationLocalized),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Adherence',
+                      style: Theme.of(context).textTheme.titleSmall,
                     ),
-                    _OutcomeChoiceButton(
-                      label: 'Worse',
-                      icon: Icons.trending_down,
-                      onTap: () => onSubmit(OutcomeStatus.worse),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: AdherenceStatus.values.map((status) {
+                        return ChoiceChip(
+                          label: Text(_titleCase(status.apiValue)),
+                          selected: selectedAdherence == status,
+                          onSelected: (_) =>
+                              setState(() => selectedAdherence = status),
+                        );
+                      }).toList(),
                     ),
-                    _OutcomeChoiceButton(
-                      label: 'Uncertain',
-                      icon: Icons.help_outline,
-                      onTap: () => onSubmit(OutcomeStatus.uncertain),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Outcome',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: OutcomeStatus.values.map((status) {
+                        return ChoiceChip(
+                          label: Text(_titleCase(status.name)),
+                          selected: selectedOutcome == status,
+                          onSelected: (_) =>
+                              setState(() => selectedOutcome = status),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: notesController,
+                      minLines: 2,
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        labelText: 'Notes (optional)',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Add confidence score'),
+                      subtitle: const Text('Optional value between 0 and 1'),
+                      value: includeConfidence,
+                      onChanged: (value) =>
+                          setState(() => includeConfidence = value),
+                    ),
+                    if (includeConfidence) ...[
+                      Slider(
+                        min: 0,
+                        max: 1,
+                        divisions: 10,
+                        label: confidence.toStringAsFixed(1),
+                        value: confidence,
+                        onChanged: (value) => setState(() => confidence = value),
+                      ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(confidence.toStringAsFixed(1)),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () => onSubmit(
+                          _OutcomeDraft(
+                            adherenceStatus: selectedAdherence,
+                            outcomeStatus: selectedOutcome,
+                            notes: notesController.text,
+                            outcomeConfidence:
+                                includeConfidence ? confidence : null,
+                          ),
+                        ),
+                        icon: const Icon(Icons.save),
+                        label: const Text('Save outcome'),
+                      ),
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
-          ),
+          },
         );
       },
     );
+    notesController.dispose();
   }
 }
 
@@ -559,21 +635,18 @@ class _PriorityBadge extends StatelessWidget {
   }
 }
 
-class _OutcomeChoiceButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
+class _OutcomeDraft {
+  final AdherenceStatus adherenceStatus;
+  final OutcomeStatus outcomeStatus;
+  final String? notes;
+  final double? outcomeConfidence;
 
-  const _OutcomeChoiceButton({
-    required this.label,
-    required this.icon,
-    required this.onTap,
+  const _OutcomeDraft({
+    required this.adherenceStatus,
+    required this.outcomeStatus,
+    this.notes,
+    this.outcomeConfidence,
   });
-
-  @override
-  Widget build(BuildContext context) {
-    return FilledButton.icon(onPressed: onTap, icon: Icon(icon), label: Text(label));
-  }
 }
 
 String _titleCase(String input) {

@@ -419,18 +419,22 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS users_updated_at ON public.users;
 CREATE TRIGGER users_updated_at
   BEFORE UPDATE ON public.users
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
+DROP TRIGGER IF EXISTS plants_updated_at ON public.plants;
 CREATE TRIGGER plants_updated_at
   BEFORE UPDATE ON public.plants
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
+DROP TRIGGER IF EXISTS scans_updated_at ON public.scans;
 CREATE TRIGGER scans_updated_at
   BEFORE UPDATE ON public.scans
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
+DROP TRIGGER IF EXISTS interventions_updated_at ON public.intervention_recommendations;
 CREATE TRIGGER interventions_updated_at
   BEFORE UPDATE ON public.intervention_recommendations
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
@@ -438,74 +442,265 @@ CREATE TRIGGER interventions_updated_at
 -- ============================================
 -- 12. CHECK CONSTRAINTS
 -- ============================================
-ALTER TABLE public.scans
-  ADD CONSTRAINT chk_processing_status
-  CHECK (processing_status IN ('queued', 'enriching', 'diagnosing', 'completed', 'failed'));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_processing_status'
+      AND conrelid = 'public.scans'::regclass
+  ) THEN
+    ALTER TABLE public.scans
+      ADD CONSTRAINT chk_processing_status
+      CHECK (processing_status IN ('queued', 'enriching', 'diagnosing', 'completed', 'failed'));
+  END IF;
+END $$;
 
-ALTER TABLE public.scan_jobs
-  ADD CONSTRAINT chk_job_type
-  CHECK (job_type IN ('enrich_weather', 'enrich_air', 'diagnose_ai'));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_job_type'
+      AND conrelid = 'public.scan_jobs'::regclass
+  ) THEN
+    ALTER TABLE public.scan_jobs
+      ADD CONSTRAINT chk_job_type
+      CHECK (job_type IN ('enrich_weather', 'enrich_air', 'diagnose_ai'));
+  END IF;
+END $$;
 
-ALTER TABLE public.scan_jobs
-  ADD CONSTRAINT chk_job_status
-  CHECK (status IN ('queued', 'running', 'succeeded', 'failed', 'retrying'));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_job_status'
+      AND conrelid = 'public.scan_jobs'::regclass
+  ) THEN
+    ALTER TABLE public.scan_jobs
+      ADD CONSTRAINT chk_job_status
+      CHECK (status IN ('queued', 'running', 'succeeded', 'failed', 'retrying'));
+  END IF;
+END $$;
 
-ALTER TABLE public.diagnosis_feedback
-  ADD CONSTRAINT chk_feedback_type
-  CHECK (feedback_type IN ('helpful', 'not_helpful', 'wrong_diagnosis', 'improved_after_treatment'));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_feedback_type'
+      AND conrelid = 'public.diagnosis_feedback'::regclass
+  ) THEN
+    ALTER TABLE public.diagnosis_feedback
+      ADD CONSTRAINT chk_feedback_type
+      CHECK (feedback_type IN ('helpful', 'not_helpful', 'wrong_diagnosis', 'improved_after_treatment'));
+  END IF;
+END $$;
 
-ALTER TABLE public.care_events
-  ADD CONSTRAINT chk_event_type
-  CHECK (event_type IN ('watered', 'fertilized', 'repotted', 'pruned'));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_event_type'
+      AND conrelid = 'public.care_events'::regclass
+  ) THEN
+    ALTER TABLE public.care_events
+      ADD CONSTRAINT chk_event_type
+      CHECK (event_type IN ('watered', 'fertilized', 'repotted', 'pruned'));
+  END IF;
+END $$;
 
-ALTER TABLE public.scans
-  ADD CONSTRAINT chk_health_score
-  CHECK (health_score IS NULL OR (health_score >= 0 AND health_score <= 100));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_health_score'
+      AND conrelid = 'public.scans'::regclass
+  ) THEN
+    ALTER TABLE public.scans
+      ADD CONSTRAINT chk_health_score
+      CHECK (health_score IS NULL OR (health_score >= 0 AND health_score <= 100));
+  END IF;
+END $$;
 
-ALTER TABLE public.scans
-  ADD CONSTRAINT chk_diagnosis_confidence
-  CHECK (diagnosis_confidence IS NULL OR (diagnosis_confidence >= 0 AND diagnosis_confidence <= 1));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_diagnosis_confidence'
+      AND conrelid = 'public.scans'::regclass
+  ) THEN
+    ALTER TABLE public.scans
+      ADD CONSTRAINT chk_diagnosis_confidence
+      CHECK (diagnosis_confidence IS NULL OR (diagnosis_confidence >= 0 AND diagnosis_confidence <= 1));
+  END IF;
+END $$;
 
-ALTER TABLE public.intervention_recommendations
-  ADD CONSTRAINT chk_intervention_priority
-  CHECK (priority IN ('high', 'medium', 'low'));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_intervention_priority'
+      AND conrelid = 'public.intervention_recommendations'::regclass
+  ) THEN
+    ALTER TABLE public.intervention_recommendations
+      ADD CONSTRAINT chk_intervention_priority
+      CHECK (priority IN ('high', 'medium', 'low'));
+  END IF;
+END $$;
 
-ALTER TABLE public.intervention_recommendations
-  ADD CONSTRAINT chk_intervention_followup_status
-  CHECK (followup_status IN ('pending', 'completed', 'skipped', 'expired'));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_intervention_followup_status'
+      AND conrelid = 'public.intervention_recommendations'::regclass
+  ) THEN
+    ALTER TABLE public.intervention_recommendations
+      ADD CONSTRAINT chk_intervention_followup_status
+      CHECK (followup_status IN ('pending', 'completed', 'skipped', 'expired'));
+  END IF;
+END $$;
 
-ALTER TABLE public.intervention_recommendations
-  ADD CONSTRAINT chk_intervention_source
-  CHECK (source IN ('gemini', 'rules', 'hybrid'));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_intervention_source'
+      AND conrelid = 'public.intervention_recommendations'::regclass
+  ) THEN
+    ALTER TABLE public.intervention_recommendations
+      ADD CONSTRAINT chk_intervention_source
+      CHECK (source IN ('gemini', 'rules', 'hybrid'));
+  END IF;
+END $$;
 
-ALTER TABLE public.intervention_recommendations
-  ADD CONSTRAINT chk_intervention_risk_level
-  CHECK (risk_level IN ('low', 'medium', 'high'));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_intervention_risk_level'
+      AND conrelid = 'public.intervention_recommendations'::regclass
+  ) THEN
+    ALTER TABLE public.intervention_recommendations
+      ADD CONSTRAINT chk_intervention_risk_level
+      CHECK (risk_level IN ('low', 'medium', 'high'));
+  END IF;
+END $$;
 
-ALTER TABLE public.intervention_recommendations
-  ADD CONSTRAINT chk_intervention_followup_window
-  CHECK (expected_followup_window_hours > 0);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_intervention_followup_window'
+      AND conrelid = 'public.intervention_recommendations'::regclass
+  ) THEN
+    ALTER TABLE public.intervention_recommendations
+      ADD CONSTRAINT chk_intervention_followup_window
+      CHECK (expected_followup_window_hours > 0);
+  END IF;
+END $$;
 
-ALTER TABLE public.intervention_outcomes
-  ADD CONSTRAINT chk_outcome_adherence
-  CHECK (adherence_status IN ('fully', 'partially', 'not_done', 'unknown'));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_outcome_adherence'
+      AND conrelid = 'public.intervention_outcomes'::regclass
+  ) THEN
+    ALTER TABLE public.intervention_outcomes
+      ADD CONSTRAINT chk_outcome_adherence
+      CHECK (adherence_status IN ('fully', 'partially', 'not_done', 'unknown'));
+  END IF;
+END $$;
 
-ALTER TABLE public.intervention_outcomes
-  ADD CONSTRAINT chk_outcome_status
-  CHECK (outcome_status IN ('improved', 'unchanged', 'worse', 'uncertain'));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_outcome_status'
+      AND conrelid = 'public.intervention_outcomes'::regclass
+  ) THEN
+    ALTER TABLE public.intervention_outcomes
+      ADD CONSTRAINT chk_outcome_status
+      CHECK (outcome_status IN ('improved', 'unchanged', 'worse', 'uncertain'));
+  END IF;
+END $$;
 
-ALTER TABLE public.intervention_outcomes
-  ADD CONSTRAINT chk_outcome_reported_by
-  CHECK (reported_by IN ('user', 'ai_inferred', 'hybrid'));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_outcome_reported_by'
+      AND conrelid = 'public.intervention_outcomes'::regclass
+  ) THEN
+    ALTER TABLE public.intervention_outcomes
+      ADD CONSTRAINT chk_outcome_reported_by
+      CHECK (reported_by IN ('user', 'ai_inferred', 'hybrid'));
+  END IF;
+END $$;
 
-ALTER TABLE public.intervention_outcomes
-  ADD CONSTRAINT chk_outcome_confidence
-  CHECK (outcome_confidence IS NULL OR (outcome_confidence >= 0 AND outcome_confidence <= 1));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_outcome_confidence'
+      AND conrelid = 'public.intervention_outcomes'::regclass
+  ) THEN
+    ALTER TABLE public.intervention_outcomes
+      ADD CONSTRAINT chk_outcome_confidence
+      CHECK (outcome_confidence IS NULL OR (outcome_confidence >= 0 AND outcome_confidence <= 1));
+  END IF;
+END $$;
 
-ALTER TABLE public.followup_missions
-  ADD CONSTRAINT chk_mission_type
-  CHECK (mission_type IN ('check_photo', 'confirm_action', 'log_outcome'));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_outcome_days_since_recommendation'
+      AND conrelid = 'public.intervention_outcomes'::regclass
+  ) THEN
+    ALTER TABLE public.intervention_outcomes
+      ADD CONSTRAINT chk_outcome_days_since_recommendation
+      CHECK (days_since_recommendation IS NULL OR days_since_recommendation >= 0);
+  END IF;
+END $$;
 
-ALTER TABLE public.followup_missions
-  ADD CONSTRAINT chk_mission_status
-  CHECK (status IN ('pending', 'completed', 'snoozed', 'skipped', 'expired'));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_outcome_followup_image_quality_score'
+      AND conrelid = 'public.intervention_outcomes'::regclass
+  ) THEN
+    ALTER TABLE public.intervention_outcomes
+      ADD CONSTRAINT chk_outcome_followup_image_quality_score
+      CHECK (
+        followup_image_quality_score IS NULL OR
+        (followup_image_quality_score >= 0 AND followup_image_quality_score <= 1)
+      );
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_mission_type'
+      AND conrelid = 'public.followup_missions'::regclass
+  ) THEN
+    ALTER TABLE public.followup_missions
+      ADD CONSTRAINT chk_mission_type
+      CHECK (mission_type IN ('check_photo', 'confirm_action', 'log_outcome'));
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_mission_status'
+      AND conrelid = 'public.followup_missions'::regclass
+  ) THEN
+    ALTER TABLE public.followup_missions
+      ADD CONSTRAINT chk_mission_status
+      CHECK (status IN ('pending', 'completed', 'snoozed', 'skipped', 'expired'));
+  END IF;
+END $$;

@@ -65,7 +65,7 @@ void main() {
       expect(find.text('Log outcome check-in'), findsOneWidget);
     });
 
-    testWidgets('logs outcome from bottom sheet', (tester) async {
+    testWidgets('logs outcome with adherence notes and confidence', (tester) async {
       const scanId = 'scan-456';
       final scan = _buildScan(id: scanId);
       final fakeNotifier = _FakeInterventionOutcomeNotifier();
@@ -104,13 +104,81 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Log Outcome'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Improved'));
+      await tester.tap(find.text('Partially'));
+      await tester.tap(find.text('Worse'));
+      await tester.enterText(
+        find.byType(TextField),
+        'Observed mild yellowing after treatment',
+      );
+      await tester.tap(find.text('Add confidence score'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save outcome'));
       await tester.pumpAndSettle();
 
       expect(fakeNotifier.calls.length, 1);
       expect(fakeNotifier.calls.first.interventionId, 'int-2');
+      expect(fakeNotifier.calls.first.outcomeStatus, OutcomeStatus.worse);
+      expect(fakeNotifier.calls.first.adherenceStatus, AdherenceStatus.partially);
+      expect(
+        fakeNotifier.calls.first.adherenceNotes,
+        'Observed mild yellowing after treatment',
+      );
+      expect(
+        fakeNotifier.calls.first.outcomeNotes,
+        'Observed mild yellowing after treatment',
+      );
+      expect(fakeNotifier.calls.first.outcomeConfidence, 0.8);
+    });
+
+    testWidgets('logs outcome with optional fields omitted', (tester) async {
+      const scanId = 'scan-789';
+      final scan = _buildScan(id: scanId);
+      final fakeNotifier = _FakeInterventionOutcomeNotifier();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            scanDetailProvider(scanId).overrideWith((ref) async => scan),
+            scanInterventionRecommendationsProvider(scanId).overrideWith(
+              (ref) async => [
+                InterventionRecommendation(
+                  id: 'int-3',
+                  scanId: scanId,
+                  userId: 'user-1',
+                  plantId: 'plant-1',
+                  recommendationCode: 'increase_light_exposure',
+                  recommendationLocalized: 'Increase light exposure',
+                  recommendedAtUtc: DateTime(2026, 2, 27),
+                  followupDueAtUtc: DateTime(2026, 3, 2),
+                  createdAt: DateTime(2026, 2, 27),
+                  updatedAt: DateTime(2026, 2, 27),
+                ),
+              ],
+            ),
+            plantFollowupMissionsProvider('plant-1').overrideWith(
+              (ref) async => const <FollowupMission>[],
+            ),
+            interventionOutcomeNotifierProvider.overrideWith(
+              (ref) => fakeNotifier,
+            ),
+          ],
+          child: const MaterialApp(home: DiagnosisResultScreen(scanId: scanId)),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Log Outcome'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save outcome'));
+      await tester.pumpAndSettle();
+
+      expect(fakeNotifier.calls.length, 1);
+      expect(fakeNotifier.calls.first.interventionId, 'int-3');
       expect(fakeNotifier.calls.first.outcomeStatus, OutcomeStatus.improved);
       expect(fakeNotifier.calls.first.adherenceStatus, AdherenceStatus.fully);
+      expect(fakeNotifier.calls.first.adherenceNotes, isNull);
+      expect(fakeNotifier.calls.first.outcomeNotes, isNull);
+      expect(fakeNotifier.calls.first.outcomeConfidence, isNull);
     });
   });
 }
@@ -119,11 +187,17 @@ class _OutcomeCall {
   final String interventionId;
   final AdherenceStatus adherenceStatus;
   final OutcomeStatus outcomeStatus;
+  final String? adherenceNotes;
+  final String? outcomeNotes;
+  final double? outcomeConfidence;
 
   const _OutcomeCall({
     required this.interventionId,
     required this.adherenceStatus,
     required this.outcomeStatus,
+    required this.adherenceNotes,
+    required this.outcomeNotes,
+    required this.outcomeConfidence,
   });
 }
 
@@ -146,6 +220,9 @@ class _FakeInterventionOutcomeNotifier extends InterventionOutcomeNotifier {
         interventionId: interventionId,
         adherenceStatus: adherenceStatus,
         outcomeStatus: outcomeStatus,
+        adherenceNotes: adherenceNotes,
+        outcomeNotes: outcomeNotes,
+        outcomeConfidence: outcomeConfidence,
       ),
     );
     state = const AsyncValue.data(null);

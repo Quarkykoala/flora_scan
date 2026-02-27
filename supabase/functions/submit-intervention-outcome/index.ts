@@ -41,6 +41,12 @@ serve(async (req: Request) => {
     }
 
     const body = await req.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const interventionId = String(body.intervention_id ?? "").trim();
     const adherenceStatus = String(body.adherence_status ?? "unknown").trim().toLowerCase();
     const outcomeStatus = String(body.outcome_status ?? "uncertain").trim().toLowerCase();
@@ -195,18 +201,21 @@ serve(async (req: Request) => {
       outcomeId = outcome.id;
     }
 
-    await serviceClient
+    const { error: interventionUpdateError } = await serviceClient
       .from("intervention_recommendations")
       .update({ followup_status: "completed", updated_at: new Date().toISOString() })
       .eq("id", interventionId)
       .eq("user_id", user.id);
+    if (interventionUpdateError) throw interventionUpdateError;
 
-    await serviceClient
+    const { error: missionUpdateError } = await serviceClient
       .from("followup_missions")
       .update({ status: "completed", completed_at_utc: new Date().toISOString() })
       .eq("intervention_id", interventionId)
       .eq("user_id", user.id)
+      .eq("mission_type", "log_outcome")
       .eq("status", "pending");
+    if (missionUpdateError) throw missionUpdateError;
 
     return new Response(
       JSON.stringify({ status: "ok", outcome_id: outcomeId }),
