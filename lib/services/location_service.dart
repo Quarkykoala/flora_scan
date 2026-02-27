@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 
@@ -86,8 +87,9 @@ class LocationService {
             'locality': place.locality,
           };
         }
-      } catch (_) {
+      } catch (e, stackTrace) {
         // Reverse geocoding failure is non-blocking
+        debugPrint('Reverse geocoding failed: $e\n$stackTrace');
       }
 
       return LocationCapture(
@@ -100,7 +102,8 @@ class LocationService {
         geohash6: geohash6,
         reverseGeo: reverseGeo,
       );
-    } catch (_) {
+    } catch (e, stackTrace) {
+      debugPrint('Location capture failed: $e\n$stackTrace');
       return null;
     }
   }
