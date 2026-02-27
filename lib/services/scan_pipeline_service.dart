@@ -99,12 +99,16 @@ class ScanPipelineService {
     final sha256 = ImageUtils.computeSha256(cleanBytes);
     final dimensions = await ImageUtils.getImageDimensions(cleanBytes);
     final quality = await ImageUtils.assessQuality(cleanBytes);
+    final mimeType = ImageUtils.getMimeType(cleanBytes);
+    final extension = mimeType.split('/').last;
 
     // Upload image to storage
     final imagePath = await SupabaseService.uploadImage(
       userId: userId,
       scanId: pending.clientScanId,
       imageBytes: cleanBytes,
+      extension: extension == 'octet-stream' ? 'jpg' : extension,
+      contentType: mimeType,
     );
 
     // Compute geohash if location available
