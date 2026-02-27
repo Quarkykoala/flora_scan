@@ -109,10 +109,12 @@ class ScanPipelineService {
 
     // Compute geohash if location available
     String? geohash6;
-    if (pending.latitude != null && pending.longitude != null) {
+    final lat = pending.latitude;
+    final lon = pending.longitude;
+    if (lat != null && lon != null) {
       geohash6 = Geohash.encode(
-        pending.latitude!,
-        pending.longitude!,
+        lat,
+        lon,
         precision: 6,
       );
     }
@@ -125,10 +127,8 @@ class ScanPipelineService {
       'image_height': dimensions?.height,
       'image_quality_score': quality.overallScore,
       'geohash_6': geohash6,
-      if (pending.latitude != null)
-        'lat_rounded': Geohash.roundCoordinate(pending.latitude!),
-      if (pending.longitude != null)
-        'lon_rounded': Geohash.roundCoordinate(pending.longitude!),
+      if (lat != null) 'lat_rounded': Geohash.roundCoordinate(lat),
+      if (lon != null) 'lon_rounded': Geohash.roundCoordinate(lon),
     };
 
     final scanResult = await SupabaseService.createScan(scanData);
