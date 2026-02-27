@@ -52,6 +52,10 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
             IconButton(
+              icon: const Icon(Icons.smart_toy_outlined),
+              onPressed: () => context.push('/assistant'),
+            ),
+            IconButton(
               icon: const Icon(Icons.settings_outlined),
               onPressed: () => context.push('/settings'),
             ),

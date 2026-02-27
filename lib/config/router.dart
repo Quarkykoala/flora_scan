@@ -11,6 +11,7 @@ import '../screens/plant/add_plant_screen.dart';
 import '../screens/diagnosis/diagnosis_result_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/scan/scan_history_screen.dart';
+import '../screens/chat/chat_assistant_screen.dart';
 
 final routerProvider = Provider<GoRouter>((_) {
   return GoRouter(
@@ -72,6 +73,11 @@ final routerProvider = Provider<GoRouter>((_) {
             path: '/settings',
             name: 'settings',
             builder: (context, state) => const SettingsScreen(),
+          ),
+          GoRoute(
+            path: '/assistant',
+            name: 'assistant',
+            builder: (context, state) => const ChatAssistantScreen(),
           ),
         ],
       ),

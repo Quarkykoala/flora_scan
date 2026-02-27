@@ -2,8 +2,9 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { validateAuthHeader } from "../_shared/security.ts";
+import { fetchPlantKnowledge } from "../_shared/plant-knowledge.ts";
 
-const PROMPT_VERSION = "1.1.0";
+const PROMPT_VERSION = "1.2.0";
 const AI_MODEL_NAME = "gemini-2.0-flash";
 
 function errorMessage(error: unknown): string {
@@ -68,15 +69,16 @@ function buildDiagnosisPrompt(params: {
   scan: Record<string, unknown>;
   locale: string;
   imageQuality: number | null;
+  plantKnowledgeSummary: string;
 }): string {
-  const { plant, scan, locale, imageQuality } = params;
+  const { plant, scan, locale, imageQuality, plantKnowledgeSummary } = params;
 
   const qualityWarning =
     imageQuality !== null && imageQuality < 0.4
       ? "\nNOTE: The image quality is LOW. Reduce confidence if uncertain and explain why."
       : "";
 
-  return `You are an expert plant pathologist and horticulturist. Analyze the provided plant image and return a strict JSON result.\n\n## Plant Profile\n- Nickname: ${plant.nickname ?? "Unknown"}\n- Species (scientific): ${plant.species_scientific ?? "Unknown"}\n- Species (common): ${plant.species_common ?? "Unknown"}\n- Environment: ${JSON.stringify(plant.environment_profile ?? {})}\n\n## Environmental Telemetry\n- Temperature: ${scan.temp_c !== null ? `${scan.temp_c}C` : "unavailable"}\n- Humidity: ${scan.humidity_pct !== null ? `${scan.humidity_pct}%` : "unavailable"}\n- VPD: ${scan.vpd_kpa !== null ? `${scan.vpd_kpa} kPa` : "unavailable"}\n- Light (lux): ${scan.lux_reading !== null ? scan.lux_reading : "unavailable"}\n- AQI: ${scan.aqi !== null ? scan.aqi : "unavailable"}\n- Solar Radiation: ${scan.solar_radiation_wm2 !== null ? `${scan.solar_radiation_wm2} W/m2` : "unavailable"}\n${qualityWarning}\n\n## Instructions\n1. Diagnose probable plant issue(s) from image + telemetry.\n2. Write diagnosis and treatment in ${locale}.\n3. diagnosis_code must always be canonical English snake_case.\n4. Return 1 to 3 practical recommendations with canonical recommendation_code in English snake_case and localized text in ${locale}.\n5. Keep risk_level low/medium/high and randomization_allowed false by default.\n6. If uncertain, lower confidence and include uncertainty_reason.\n7. Output JSON ONLY.\n\n## Required JSON\n{\n  "diagnosis_code": "string",\n  "diagnosis_localized": "string",\n  "treatment_localized": "string",\n  "health_score": 0,\n  "visual_symptoms": ["string"],\n  "confidence": 0.0,\n  "uncertainty_reason": null,\n  "recommendations": [\n    {\n      "recommendation_code": "string",\n      "recommendation_localized": "string",\n      "recommendation_details_localized": "string",\n      "priority": "high|medium|low",\n      "expected_followup_window_hours": 72,\n      "risk_level": "low|medium|high",\n      "randomization_allowed": false\n    }\n  ]\n}`;
+  return `You are an expert plant pathologist and horticulturist. Analyze the provided plant image and return a strict JSON result.\n\n## Plant Profile\n- Nickname: ${plant.nickname ?? "Unknown"}\n- Species (scientific): ${plant.species_scientific ?? "Unknown"}\n- Species (common): ${plant.species_common ?? "Unknown"}\n- Environment: ${JSON.stringify(plant.environment_profile ?? {})}\n\n## External Plant Knowledge (rules/API)\n${plantKnowledgeSummary}\n\n## Environmental Telemetry\n- Temperature: ${scan.temp_c !== null ? `${scan.temp_c}C` : "unavailable"}\n- Humidity: ${scan.humidity_pct !== null ? `${scan.humidity_pct}%` : "unavailable"}\n- VPD: ${scan.vpd_kpa !== null ? `${scan.vpd_kpa} kPa` : "unavailable"}\n- Light (lux): ${scan.lux_reading !== null ? scan.lux_reading : "unavailable"}\n- AQI: ${scan.aqi !== null ? scan.aqi : "unavailable"}\n- Solar Radiation: ${scan.solar_radiation_wm2 !== null ? `${scan.solar_radiation_wm2} W/m2` : "unavailable"}\n${qualityWarning}\n\n## Instructions\n1. Diagnose probable plant issue(s) from image + telemetry + external plant knowledge.\n2. Write diagnosis and treatment in ${locale}.\n3. diagnosis_code must always be canonical English snake_case.\n4. Return 1 to 3 practical recommendations with canonical recommendation_code in English snake_case and localized text in ${locale}.\n5. Keep risk_level low/medium/high and randomization_allowed false by default.\n6. If uncertain, lower confidence and include uncertainty_reason.\n7. Output JSON ONLY.\n\n## Required JSON\n{\n  "diagnosis_code": "string",\n  "diagnosis_localized": "string",\n  "treatment_localized": "string",\n  "health_score": 0,\n  "visual_symptoms": ["string"],\n  "confidence": 0.0,\n  "uncertainty_reason": null,\n  "recommendations": [\n    {\n      "recommendation_code": "string",\n      "recommendation_localized": "string",\n      "recommendation_details_localized": "string",\n      "priority": "high|medium|low",\n      "expected_followup_window_hours": 72,\n      "risk_level": "low|medium|high",\n      "randomization_allowed": false\n    }\n  ]\n}`;
 }
 
 function parseModelJson(responseText: string): Record<string, unknown> {
@@ -181,6 +183,12 @@ serve(async (req: Request) => {
       .single();
 
     const locale = userProfile?.locale_code ?? "en";
+    const speciesHint = String(
+      scan.plants?.species_scientific ??
+        scan.plants?.species_common ??
+        "",
+    );
+    const plantKnowledge = await fetchPlantKnowledge(speciesHint);
 
     const { data: signedUrlData, error: signedUrlError } = await serviceClient.storage
       .from("plant-scans")
@@ -201,6 +209,7 @@ serve(async (req: Request) => {
       scan,
       locale,
       imageQuality: scan.image_quality_score,
+      plantKnowledgeSummary: plantKnowledge.summary,
     });
 
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${AI_MODEL_NAME}:generateContent?key=${geminiApiKey}`;
@@ -269,7 +278,11 @@ serve(async (req: Request) => {
         visual_symptoms: Array.isArray(diagnosis.visual_symptoms)
           ? diagnosis.visual_symptoms.map(String)
           : [],
-        ai_diagnosis_raw: diagnosis,
+        ai_diagnosis_raw: {
+          ...diagnosis,
+          knowledge_source: plantKnowledge.provider,
+          knowledge_summary: plantKnowledge.summary,
+        },
         processing_status: "completed",
         processing_error: null,
       })
@@ -310,7 +323,7 @@ serve(async (req: Request) => {
             expected_followup_window_hours: rec.expected_followup_window_hours ?? 72,
             followup_due_at_utc: followupDue.toISOString(),
             followup_status: "pending",
-            source: "gemini",
+            source: plantKnowledge.provider === "perenual" ? "hybrid" : "gemini",
             ai_model_name: AI_MODEL_NAME,
             ai_model_version: modelVersion,
             prompt_version: PROMPT_VERSION,
@@ -395,6 +408,7 @@ serve(async (req: Request) => {
           health_score: healthScore,
           confidence,
         },
+        knowledge_source: plantKnowledge.provider,
         recommendations_created: recommendationsCreated,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
