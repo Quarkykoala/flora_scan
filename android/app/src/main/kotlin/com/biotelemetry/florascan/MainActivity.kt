@@ -1,4 +1,4 @@
-package com.biotelemetry.flora_scan
+package com.biotelemetry.florascan
 
 import io.flutter.embedding.android.FlutterActivity
 
