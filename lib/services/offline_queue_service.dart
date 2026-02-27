@@ -17,6 +17,20 @@ class OfflineQueueService {
   static bool _isSyncing = false;
   static StreamSubscription? _connectivitySubscription;
 
+  /// The function used to upload a scan.
+  /// Defaults to [ScanPipelineService.uploadScan].
+  /// Can be overridden for testing.
+  @visibleForTesting
+  static Future<String> Function(PendingScan) uploadCallback =
+      ScanPipelineService.uploadScan;
+
+  /// Clears the queue.
+  /// Only for testing purposes.
+  @visibleForTesting
+  static void clearQueue() {
+    _queue.clear();
+  }
+
   /// Add a scan to the offline queue.
   static void enqueue(PendingScan scan) {
     _queue.add(scan);
@@ -88,16 +102,19 @@ class OfflineQueueService {
           scan.syncStatus = SyncStatus.uploading;
           scan.lastAttempt = DateTime.now();
 
-          await ScanPipelineService.uploadScan(scan);
+          await uploadCallback(scan);
 
           scan.syncStatus = SyncStatus.uploaded;
           debugPrint('Scan uploaded: ${scan.clientScanId}');
         } catch (e) {
           scan.syncStatus = SyncStatus.failed;
           scan.retryCount++;
-          scan.lastError = e.toString();
+          // Sanitized error for logs
           debugPrint('Scan upload failed: ${scan.clientScanId} '
-              '(attempt ${scan.retryCount}): $e');
+              '(attempt ${scan.retryCount}). Error type: ${e.runtimeType}');
+          // Store full error internally for debugging if needed, or consider sanitizing this too
+          // depending on where 'lastError' is displayed.
+          scan.lastError = e.toString();
         }
       }));
     } finally {

@@ -86,6 +86,36 @@ class ScanJob {
       'started_at': startedAt?.toIso8601String(),
       'finished_at': finishedAt?.toIso8601String(),
       'error_message': errorMessage,
+      'created_at': createdAt.toIso8601String(),
     };
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+
+    return other is ScanJob &&
+        other.id == id &&
+        other.scanId == scanId &&
+        other.jobType == jobType &&
+        other.status == status &&
+        other.attempts == attempts &&
+        other.startedAt == startedAt &&
+        other.finishedAt == finishedAt &&
+        other.errorMessage == errorMessage &&
+        other.createdAt == createdAt;
+  }
+
+  @override
+  int get hashCode {
+    return id.hashCode ^
+        scanId.hashCode ^
+        jobType.hashCode ^
+        status.hashCode ^
+        attempts.hashCode ^
+        startedAt.hashCode ^
+        finishedAt.hashCode ^
+        errorMessage.hashCode ^
+        createdAt.hashCode;
   }
 }

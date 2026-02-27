@@ -1,6 +1,6 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 
 /// Image processing utilities for EXIF stripping and quality scoring.
@@ -16,8 +16,9 @@ class ImageUtils {
 
       // Re-encode without EXIF data
       return Uint8List.fromList(img.encodeJpg(image, quality: 92));
-    } catch (_) {
+    } catch (e) {
       // If processing fails, return original bytes
+      debugPrint('Failed to strip EXIF metadata: $e');
       return imageBytes;
     }
   }
@@ -55,7 +56,8 @@ class ImageUtils {
         brightnessScore: brightnessScore,
         framingScore: framingScore,
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Failed to assess image quality: $e');
       return const ImageQualityResult(
         overallScore: 0.5,
         blurScore: 0.5,
@@ -160,7 +162,8 @@ class ImageUtils {
       final image = img.decodeImage(imageBytes);
       if (image == null) return null;
       return ImageDimensions(width: image.width, height: image.height);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Failed to get image dimensions: $e');
       return null;
     }
   }
@@ -168,6 +171,53 @@ class ImageUtils {
   /// Read image file as bytes.
   static Future<Uint8List> readImageFile(String path) async {
     return File(path).readAsBytes();
+  }
+
+  /// Detect MIME type from image bytes using magic numbers.
+  /// Falls back to 'application/octet-stream' if unknown.
+  static String getMimeType(Uint8List bytes) {
+    if (bytes.length < 12) return 'application/octet-stream';
+
+    // JPEG: FF D8 FF
+    if (bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) {
+      return 'image/jpeg';
+    }
+
+    // PNG: 89 50 4E 47 0D 0A 1A 0A
+    if (bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47 &&
+        bytes[4] == 0x0D &&
+        bytes[5] == 0x0A &&
+        bytes[6] == 0x1A &&
+        bytes[7] == 0x0A) {
+      return 'image/png';
+    }
+
+    // GIF87a or GIF89a
+    if (bytes[0] == 0x47 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x38 &&
+        (bytes[4] == 0x37 || bytes[4] == 0x39) &&
+        bytes[5] == 0x61) {
+      return 'image/gif';
+    }
+
+    // WebP: RIFF .... WEBP
+    if (bytes[0] == 0x52 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x46 &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50) {
+      return 'image/webp';
+    }
+
+    return 'application/octet-stream';
   }
 }
 

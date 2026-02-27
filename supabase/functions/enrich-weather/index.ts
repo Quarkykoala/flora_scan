@@ -1,6 +1,13 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
+import { validateAuthHeader } from "../_shared/security.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
 
 const OPEN_METEO_BASE = "https://api.open-meteo.com/v1";
 
@@ -21,6 +28,10 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+
+  // Validate Authorization header
+  const authError = validateAuthHeader(req, corsHeaders);
+  if (authError) return authError;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -95,7 +106,7 @@ serve(async (req: Request) => {
     }
 
     const weatherData = await weatherResponse.json();
-    const hourly = weatherData.hourly;
+    const hourly = weatherData?.hourly;
 
     if (!hourly || !hourly.time || hourly.time.length === 0) {
       throw new Error("No hourly data returned from Open-Meteo");
