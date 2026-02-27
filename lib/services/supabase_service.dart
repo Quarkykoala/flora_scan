@@ -28,13 +28,14 @@ class SupabaseService {
     required String scanId,
     required Uint8List imageBytes,
     String extension = 'jpg',
+    required String contentType,
   }) async {
     final path = '$userId/$scanId.$extension';
     await client.storage.from(AppConfig.imageBucket).uploadBinary(
           path,
           imageBytes,
-          fileOptions: const FileOptions(
-            contentType: 'image/jpeg',
+          fileOptions: FileOptions(
+            contentType: contentType,
             upsert: true,
           ),
         );
