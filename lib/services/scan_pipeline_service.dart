@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 import '../config/app_config.dart';
@@ -87,8 +86,7 @@ class ScanPipelineService {
     );
   }
 
-  /// Step 3: Upload scan to Supabase.
-  /// Strips EXIF, uploads image, creates scan row, enqueues jobs.
+  /// Step 3: Upload scan to Supabase via idempotent create-scan function.
   static Future<String> uploadScan(PendingScan pending) async {
     final userId = SupabaseService.currentUserId;
     if (userId == null) throw Exception('User not authenticated');
@@ -123,8 +121,8 @@ class ScanPipelineService {
       );
     }
 
-    // Create scan record
-    final scanData = {
+    // Build full payload for create-scan function.
+    final scanPayload = {
       ...pending.toUploadJson(userId, imagePath),
       'image_sha256': sha256,
       'image_width': dimensions?.width,
@@ -135,18 +133,10 @@ class ScanPipelineService {
       if (lon != null) 'lon_rounded': Geohash.roundCoordinate(lon),
     };
 
-    final scanResult = await SupabaseService.createScan(scanData);
-    final scanId = scanResult['id'] as String;
-
-    // Trigger server-side processing via Edge Function
-    try {
-      await SupabaseService.invokeFunction(
-        'create-scan',
-        body: {'scan_id': scanId},
-      );
-    } catch (e) {
-      debugPrint('Failed to trigger scan processing: $e');
-      // Non-blocking — jobs can be retried
+    final result = await SupabaseService.createScanViaFunction(scanPayload);
+    final scanId = result['scan_id'] as String?;
+    if (scanId == null || scanId.isEmpty) {
+      throw Exception('create-scan response missing scan_id');
     }
 
     return scanId;

@@ -46,10 +46,10 @@ class SupabaseService {
   static Future<String> getSignedImageUrl(String path) async {
     return client.storage
         .from(AppConfig.imageBucket)
-        .createSignedUrl(path, 3600); // 1 hour expiry
+        .createSignedUrl(path, 3600);
   }
 
-  // ── Users ──
+  // Users
 
   /// Create or update user profile.
   static Future<void> upsertUserProfile(Map<String, dynamic> data) async {
@@ -77,7 +77,7 @@ class SupabaseService {
         .eq('id', userId);
   }
 
-  // ── Plants ──
+  // Plants
 
   /// Get all plants for user.
   static Future<List<Map<String, dynamic>>> getPlants(String userId) async {
@@ -92,18 +92,13 @@ class SupabaseService {
 
   /// Get single plant.
   static Future<Map<String, dynamic>?> getPlant(String plantId) async {
-    return await client
-        .from('plants')
-        .select()
-        .eq('id', plantId)
-        .maybeSingle();
+    return await client.from('plants').select().eq('id', plantId).maybeSingle();
   }
 
   /// Create plant.
   static Future<Map<String, dynamic>> createPlant(
       Map<String, dynamic> data) async {
-    final response =
-        await client.from('plants').insert(data).select().single();
+    final response = await client.from('plants').insert(data).select().single();
     return response;
   }
 
@@ -123,28 +118,31 @@ class SupabaseService {
     await updatePlant(plantId, {'is_archived': true});
   }
 
-  // ── Scans ──
+  // Scans
 
-  /// Create scan record.
-  static Future<Map<String, dynamic>> createScan(
-      Map<String, dynamic> data) async {
-    final response =
-        await client.from('scans').insert(data).select().single();
+  /// Create scan record directly in table.
+  static Future<Map<String, dynamic>> createScan(Map<String, dynamic> data) async {
+    final response = await client.from('scans').insert(data).select().single();
     return response;
+  }
+
+  /// Create scan through idempotent Edge Function path.
+  static Future<Map<String, dynamic>> createScanViaFunction(
+    Map<String, dynamic> payload,
+  ) async {
+    return invokeFunction(
+      'create-scan',
+      body: payload,
+    );
   }
 
   /// Get scan by ID.
   static Future<Map<String, dynamic>?> getScan(String scanId) async {
-    return await client
-        .from('scans')
-        .select()
-        .eq('id', scanId)
-        .maybeSingle();
+    return await client.from('scans').select().eq('id', scanId).maybeSingle();
   }
 
   /// Get scans for a plant.
-  static Future<List<Map<String, dynamic>>> getScansForPlant(
-      String plantId) async {
+  static Future<List<Map<String, dynamic>>> getScansForPlant(String plantId) async {
     final response = await client
         .from('scans')
         .select()
@@ -195,11 +193,10 @@ class SupabaseService {
         .subscribe();
   }
 
-  // ── Scan Jobs ──
+  // Scan jobs
 
   /// Get jobs for a scan.
-  static Future<List<Map<String, dynamic>>> getScanJobs(
-      String scanId) async {
+  static Future<List<Map<String, dynamic>>> getScanJobs(String scanId) async {
     final response = await client
         .from('scan_jobs')
         .select()
@@ -208,14 +205,14 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(response);
   }
 
-  // ── Diagnosis Feedback ──
+  // Diagnosis feedback
 
   /// Submit diagnosis feedback.
   static Future<void> submitFeedback(Map<String, dynamic> data) async {
     await client.from('diagnosis_feedback').insert(data);
   }
 
-  // ── Care Events ──
+  // Care events
 
   /// Create care event.
   static Future<void> createCareEvent(Map<String, dynamic> data) async {
@@ -223,8 +220,7 @@ class SupabaseService {
   }
 
   /// Get care events for a plant.
-  static Future<List<Map<String, dynamic>>> getCareEvents(
-      String plantId) async {
+  static Future<List<Map<String, dynamic>>> getCareEvents(String plantId) async {
     final response = await client
         .from('care_events')
         .select()
@@ -234,7 +230,105 @@ class SupabaseService {
     return List<Map<String, dynamic>>.from(response);
   }
 
-  // ── Edge Functions ──
+  // Intervention recommendations
+
+  /// Get intervention recommendations for a scan.
+  static Future<List<Map<String, dynamic>>> getInterventionRecommendationsForScan(
+    String scanId,
+  ) async {
+    final response = await client
+        .from('intervention_recommendations')
+        .select()
+        .eq('scan_id', scanId)
+        .order('recommended_at_utc', ascending: false);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Get intervention recommendations for a plant.
+  static Future<List<Map<String, dynamic>>> getInterventionRecommendationsForPlant(
+    String plantId,
+  ) async {
+    final response = await client
+        .from('intervention_recommendations')
+        .select()
+        .eq('plant_id', plantId)
+        .order('recommended_at_utc', ascending: false);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  // Intervention outcomes
+
+  /// Get outcomes for an intervention recommendation.
+  static Future<List<Map<String, dynamic>>>
+      getInterventionOutcomesForIntervention(String interventionId) async {
+    final response = await client
+        .from('intervention_outcomes')
+        .select()
+        .eq('intervention_id', interventionId)
+        .order('recorded_at_utc', ascending: false);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Get outcomes for a plant.
+  static Future<List<Map<String, dynamic>>> getInterventionOutcomesForPlant(
+    String plantId,
+  ) async {
+    final response = await client
+        .from('intervention_outcomes')
+        .select()
+        .eq('plant_id', plantId)
+        .order('recorded_at_utc', ascending: false);
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  /// Submit intervention outcome through the dedicated Edge Function.
+  static Future<Map<String, dynamic>> submitInterventionOutcome({
+    required String interventionId,
+    required String adherenceStatus,
+    required String outcomeStatus,
+    String? adherenceNotes,
+    String? outcomeNotes,
+    double? outcomeConfidence,
+    String? followupScanId,
+    double? followupImageQualityScore,
+  }) async {
+    return invokeFunction(
+      'submit-intervention-outcome',
+      body: {
+        'intervention_id': interventionId,
+        'adherence_status': adherenceStatus,
+        'outcome_status': outcomeStatus,
+        'adherence_notes': adherenceNotes,
+        'outcome_notes': outcomeNotes,
+        'outcome_confidence': outcomeConfidence,
+        'followup_scan_id': followupScanId,
+        'followup_image_quality_score': followupImageQualityScore,
+      },
+    );
+  }
+
+  // Follow-up missions
+
+  /// Get follow-up missions for user, optionally filtered by plant/status.
+  static Future<List<Map<String, dynamic>>> getFollowupMissions({
+    required String userId,
+    String? plantId,
+    String? status,
+  }) async {
+    var query = client.from('followup_missions').select().eq('user_id', userId);
+
+    if (plantId != null) {
+      query = query.eq('plant_id', plantId);
+    }
+    if (status != null) {
+      query = query.eq('status', status);
+    }
+
+    final response = await query.order('due_at_utc');
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  // Edge Functions
 
   /// Invoke a Supabase Edge Function.
   static Future<Map<String, dynamic>> invokeFunction(
@@ -245,6 +339,15 @@ class SupabaseService {
       functionName,
       body: body,
     );
-    return response.data as Map<String, dynamic>;
+
+    final data = response.data;
+    if (data is Map<String, dynamic>) {
+      return data;
+    }
+    if (data is Map) {
+      return Map<String, dynamic>.from(data);
+    }
+
+    throw Exception('Invalid response from function $functionName');
   }
 }

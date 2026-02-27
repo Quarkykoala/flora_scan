@@ -2,14 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../config/theme.dart';
+import '../../models/followup_mission.dart';
+import '../../models/intervention_outcome.dart';
+import '../../models/intervention_recommendation.dart';
 import '../../models/scan.dart';
+import '../../providers/followup_mission_provider.dart';
+import '../../providers/intervention_outcome_provider.dart';
+import '../../providers/intervention_recommendation_provider.dart';
 import '../../providers/scan_provider.dart';
 import '../../widgets/ambient_background.dart';
+import '../../widgets/confidence_chip.dart';
 import '../../widgets/glassmorphic_card.dart';
 import '../../widgets/health_score_indicator.dart';
-import '../../widgets/confidence_chip.dart';
 
 class DiagnosisResultScreen extends ConsumerWidget {
   final String scanId;
@@ -55,7 +62,7 @@ class DiagnosisResultScreen extends ConsumerWidget {
             if (scan == null) {
               return const Center(child: Text('Scan not found'));
             }
-            return _buildResultContent(context, scan);
+            return _buildResultContent(context, ref, scan);
           },
         ),
       ),
@@ -69,7 +76,13 @@ class DiagnosisResultScreen extends ConsumerWidget {
     return AmbientMood.sunny;
   }
 
-  Widget _buildResultContent(BuildContext context, Scan scan) {
+  Widget _buildResultContent(BuildContext context, WidgetRef ref, Scan scan) {
+    final recommendationsAsync =
+        ref.watch(scanInterventionRecommendationsProvider(scan.id));
+    final missionsAsync = ref.watch(plantFollowupMissionsProvider(scan.plantId));
+    final outcomeState = ref.watch(interventionOutcomeNotifierProvider);
+    final outcomeNotifier = ref.read(interventionOutcomeNotifierProvider.notifier);
+
     return AnimationLimiter(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -77,27 +90,19 @@ class DiagnosisResultScreen extends ConsumerWidget {
           children: AnimationConfiguration.toStaggeredList(
             duration: const Duration(milliseconds: 600),
             childAnimationBuilder: (widget) => SlideAnimation(
-              verticalOffset: 50.0,
-              child: FadeInAnimation(
-                child: widget,
-              ),
+              verticalOffset: 50,
+              child: FadeInAnimation(child: widget),
             ),
             children: [
-              // 1. Hero Health Score
               Center(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 24),
                   child: Hero(
                     tag: 'health-score-${scan.id}',
-                    child: HealthScoreIndicator(
-                      score: scan.healthScore,
-                      size: 160,
-                    ),
+                    child: HealthScoreIndicator(score: scan.healthScore, size: 160),
                   ),
                 ),
               ),
-
-              // 2. Main Diagnosis Card
               GlassmorphicCard(
                 padding: const EdgeInsets.all(24),
                 child: Column(
@@ -111,15 +116,15 @@ class DiagnosisResultScreen extends ConsumerWidget {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
-                    if (scan.confidenceLevel != null)
-                      ConfidenceChip(
-                        level: scan.confidenceLevel,
-                        score: scan.diagnosisConfidence,
-                      ),
+                    ConfidenceChip(
+                      level: scan.confidenceLevel,
+                      score: scan.diagnosisConfidence,
+                    ),
                     const SizedBox(height: 16),
                     Text(
                       scan.processingStatus == ProcessingStatus.completed
-                          ? (scan.treatmentLocalized ?? 'No treatment recommendations available.')
+                          ? (scan.treatmentLocalized ??
+                              'No treatment recommendations available.')
                           : 'Processing your scan. Please wait...',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                             color: Colors.black54,
@@ -131,8 +136,6 @@ class DiagnosisResultScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 16),
-
-              // 3. Telemetry Grid
               if (scan.isComplete) ...[
                 Row(
                   children: [
@@ -140,7 +143,7 @@ class DiagnosisResultScreen extends ConsumerWidget {
                       child: _TelemetryCard(
                         icon: Icons.thermostat,
                         value: scan.tempC != null
-                            ? '${scan.tempC!.toStringAsFixed(1)}°C'
+                            ? '${scan.tempC!.toStringAsFixed(1)} C'
                             : '--',
                         label: 'Temperature',
                         color: Colors.orange,
@@ -185,8 +188,6 @@ class DiagnosisResultScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 24),
               ],
-
-              // 4. Visual Symptoms
               if (scan.visualSymptoms != null && scan.visualSymptoms!.isNotEmpty) ...[
                 Align(
                   alignment: Alignment.centerLeft,
@@ -215,13 +216,280 @@ class DiagnosisResultScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 24),
               ],
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Recommended Actions',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              recommendationsAsync.when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: LinearProgressIndicator(minHeight: 3),
+                ),
+                error: (_, _) => const GlassmorphicCard(
+                  padding: EdgeInsets.all(16),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Unable to load recommendations right now.'),
+                  ),
+                ),
+                data: (recommendations) {
+                  if (recommendations.isEmpty) {
+                    return const GlassmorphicCard(
+                      padding: EdgeInsets.all(16),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text('No recommended actions available yet.'),
+                      ),
+                    );
+                  }
 
+                  return Column(
+                    children: recommendations.map((recommendation) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: GlassmorphicCard(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      recommendation.recommendationLocalized,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall
+                                          ?.copyWith(fontWeight: FontWeight.w700),
+                                    ),
+                                  ),
+                                  _PriorityBadge(priority: recommendation.priority),
+                                ],
+                              ),
+                              if ((recommendation.recommendationDetailsLocalized ?? '')
+                                  .isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  recommendation.recommendationDetailsLocalized!,
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ],
+                              const SizedBox(height: 12),
+                              FilledButton.icon(
+                                onPressed: outcomeState.isLoading
+                                    ? null
+                                    : () => _showOutcomeBottomSheet(
+                                          context: context,
+                                          recommendation: recommendation,
+                                          onSubmit: (outcomeStatus) async {
+                                            await outcomeNotifier.submitOutcome(
+                                              interventionId: recommendation.id,
+                                              adherenceStatus: AdherenceStatus.fully,
+                                              outcomeStatus: outcomeStatus,
+                                            );
+                                            ref.invalidate(
+                                                plantFollowupMissionsProvider(scan.plantId));
+                                            ref.invalidate(
+                                                scanInterventionRecommendationsProvider(scan.id));
+                                            if (context.mounted) {
+                                              Navigator.of(context).pop();
+                                            }
+                                          },
+                                        ),
+                                icon: outcomeState.isLoading
+                                    ? const SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      )
+                                    : const Icon(Icons.task_alt),
+                                label: const Text('Log Outcome'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Follow-up Missions',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              missionsAsync.when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: LinearProgressIndicator(minHeight: 3),
+                ),
+                error: (_, _) => const GlassmorphicCard(
+                  padding: EdgeInsets.all(16),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Unable to load follow-up missions right now.'),
+                  ),
+                ),
+                data: (missions) {
+                  final scanMissionIds = recommendationsAsync.valueOrNull
+                          ?.map((r) => r.id)
+                          .toSet() ??
+                      <String>{};
+                  final filtered = missions
+                      .where((m) => scanMissionIds.contains(m.interventionId))
+                      .toList();
+
+                  if (filtered.isEmpty) {
+                    return const GlassmorphicCard(
+                      padding: EdgeInsets.all(16),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text('No follow-up missions scheduled.'),
+                      ),
+                    );
+                  }
+
+                  return Column(
+                    children: filtered.map((mission) {
+                      final dueDate =
+                          DateFormat('MMM d, y').format(mission.dueAtUtc.toLocal());
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: GlassmorphicCard(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                mission.status == FollowupMissionStatus.completed
+                                    ? Icons.check_circle
+                                    : Icons.schedule,
+                                color: mission.status == FollowupMissionStatus.completed
+                                    ? Colors.green
+                                    : Colors.blueGrey,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _missionTitle(mission.missionType),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall
+                                          ?.copyWith(fontWeight: FontWeight.w700),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text('Due: $dueDate'),
+                                    const SizedBox(height: 2),
+                                    Text('Status: ${_titleCase(mission.status.name)}'),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
+              if (outcomeState.hasError) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '${outcomeState.error}',
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ],
               const SizedBox(height: 40),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _showOutcomeBottomSheet({
+    required BuildContext context,
+    required InterventionRecommendation recommendation,
+    required Future<void> Function(OutcomeStatus) onSubmit,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Capture outcome',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(recommendation.recommendationLocalized),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _OutcomeChoiceButton(
+                      label: 'Improved',
+                      icon: Icons.trending_up,
+                      onTap: () => onSubmit(OutcomeStatus.improved),
+                    ),
+                    _OutcomeChoiceButton(
+                      label: 'Unchanged',
+                      icon: Icons.trending_flat,
+                      onTap: () => onSubmit(OutcomeStatus.unchanged),
+                    ),
+                    _OutcomeChoiceButton(
+                      label: 'Worse',
+                      icon: Icons.trending_down,
+                      onTap: () => onSubmit(OutcomeStatus.worse),
+                    ),
+                    _OutcomeChoiceButton(
+                      label: 'Uncertain',
+                      icon: Icons.help_outline,
+                      onTap: () => onSubmit(OutcomeStatus.uncertain),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+String _missionTitle(FollowupMissionType type) {
+  switch (type) {
+    case FollowupMissionType.checkPhoto:
+      return 'Upload follow-up photo';
+    case FollowupMissionType.confirmAction:
+      return 'Confirm action completed';
+    case FollowupMissionType.logOutcome:
+      return 'Log outcome check-in';
   }
 }
 
@@ -248,20 +516,68 @@ class _TelemetryCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             value,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey.shade600,
-            ),
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
           ),
         ],
       ),
     );
   }
+}
+
+class _PriorityBadge extends StatelessWidget {
+  final InterventionPriority priority;
+
+  const _PriorityBadge({required this.priority});
+
+  @override
+  Widget build(BuildContext context) {
+    Color color;
+    switch (priority) {
+      case InterventionPriority.high:
+        color = Colors.red;
+      case InterventionPriority.medium:
+        color = Colors.orange;
+      case InterventionPriority.low:
+        color = Colors.green;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        _titleCase(priority.name),
+        style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
+      ),
+    );
+  }
+}
+
+class _OutcomeChoiceButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _OutcomeChoiceButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.icon(onPressed: onTap, icon: Icon(icon), label: Text(label));
+  }
+}
+
+String _titleCase(String input) {
+  if (input.isEmpty) return input;
+  final normalized = input.replaceAll('_', ' ');
+  return normalized[0].toUpperCase() + normalized.substring(1);
 }

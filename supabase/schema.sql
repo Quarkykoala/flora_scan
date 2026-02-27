@@ -250,7 +250,137 @@ CREATE POLICY "care_events_insert_own" ON public.care_events
   FOR INSERT WITH CHECK (user_id = auth.uid());
 
 -- ============================================
--- 7. STORAGE BUCKET
+-- 7. INTERVENTION_RECOMMENDATIONS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.intervention_recommendations (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  scan_id UUID NOT NULL REFERENCES public.scans(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  plant_id UUID NOT NULL REFERENCES public.plants(id) ON DELETE CASCADE,
+  recommendation_code TEXT NOT NULL,
+  recommendation_localized TEXT NOT NULL,
+  recommendation_details_localized TEXT NULL,
+  priority TEXT NOT NULL DEFAULT 'medium',
+  recommended_at_utc TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expected_followup_window_hours INT NOT NULL DEFAULT 72,
+  followup_due_at_utc TIMESTAMPTZ NOT NULL,
+  followup_status TEXT NOT NULL DEFAULT 'pending',
+  source TEXT NOT NULL DEFAULT 'gemini',
+  ai_model_name TEXT NULL,
+  ai_model_version TEXT NULL,
+  prompt_version TEXT NULL,
+  experiment_id TEXT NULL,
+  variant_id TEXT NULL,
+  is_randomized BOOLEAN NOT NULL DEFAULT false,
+  randomization_allowed BOOLEAN NOT NULL DEFAULT false,
+  risk_level TEXT NOT NULL DEFAULT 'low',
+  safety_notes TEXT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_interventions_scan_id
+  ON public.intervention_recommendations(scan_id);
+CREATE INDEX IF NOT EXISTS idx_interventions_user_due
+  ON public.intervention_recommendations(user_id, followup_due_at_utc);
+CREATE INDEX IF NOT EXISTS idx_interventions_status_due
+  ON public.intervention_recommendations(followup_status, followup_due_at_utc);
+CREATE INDEX IF NOT EXISTS idx_interventions_code
+  ON public.intervention_recommendations(recommendation_code);
+
+ALTER TABLE public.intervention_recommendations ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "interventions_select_own" ON public.intervention_recommendations
+  FOR SELECT USING (user_id = auth.uid());
+
+CREATE POLICY "interventions_insert_own" ON public.intervention_recommendations
+  FOR INSERT WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "interventions_update_own" ON public.intervention_recommendations
+  FOR UPDATE USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "interventions_service_all" ON public.intervention_recommendations
+  FOR ALL USING (true) WITH CHECK (true);
+
+-- ============================================
+-- 8. INTERVENTION_OUTCOMES TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.intervention_outcomes (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  intervention_id UUID NOT NULL REFERENCES public.intervention_recommendations(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  plant_id UUID NOT NULL REFERENCES public.plants(id) ON DELETE CASCADE,
+  adherence_status TEXT NOT NULL,
+  adherence_notes TEXT NULL,
+  outcome_status TEXT NOT NULL,
+  outcome_confidence DOUBLE PRECISION NULL,
+  outcome_notes TEXT NULL,
+  followup_scan_id UUID NULL REFERENCES public.scans(id) ON DELETE SET NULL,
+  followup_image_quality_score DOUBLE PRECISION NULL,
+  days_since_recommendation INT NULL,
+  reported_by TEXT NOT NULL DEFAULT 'user',
+  ai_outcome_assessment_raw JSONB NULL,
+  recorded_at_utc TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_outcomes_intervention_id
+  ON public.intervention_outcomes(intervention_id);
+CREATE INDEX IF NOT EXISTS idx_outcomes_user_recorded
+  ON public.intervention_outcomes(user_id, recorded_at_utc DESC);
+CREATE INDEX IF NOT EXISTS idx_outcomes_plant_recorded
+  ON public.intervention_outcomes(plant_id, recorded_at_utc DESC);
+
+ALTER TABLE public.intervention_outcomes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "outcomes_select_own" ON public.intervention_outcomes
+  FOR SELECT USING (user_id = auth.uid());
+
+CREATE POLICY "outcomes_insert_own" ON public.intervention_outcomes
+  FOR INSERT WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "outcomes_service_all" ON public.intervention_outcomes
+  FOR ALL USING (true) WITH CHECK (true);
+
+-- ============================================
+-- 9. FOLLOWUP_MISSIONS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.followup_missions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  plant_id UUID NOT NULL REFERENCES public.plants(id) ON DELETE CASCADE,
+  intervention_id UUID NOT NULL REFERENCES public.intervention_recommendations(id) ON DELETE CASCADE,
+  mission_type TEXT NOT NULL DEFAULT 'log_outcome',
+  due_at_utc TIMESTAMPTZ NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  notification_scheduled BOOLEAN NOT NULL DEFAULT false,
+  completed_at_utc TIMESTAMPTZ NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_missions_user_due
+  ON public.followup_missions(user_id, due_at_utc);
+CREATE INDEX IF NOT EXISTS idx_missions_status_due
+  ON public.followup_missions(status, due_at_utc);
+CREATE INDEX IF NOT EXISTS idx_missions_intervention_id
+  ON public.followup_missions(intervention_id);
+
+ALTER TABLE public.followup_missions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "missions_select_own" ON public.followup_missions
+  FOR SELECT USING (user_id = auth.uid());
+
+CREATE POLICY "missions_insert_own" ON public.followup_missions
+  FOR INSERT WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "missions_update_own" ON public.followup_missions
+  FOR UPDATE USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "missions_service_all" ON public.followup_missions
+  FOR ALL USING (true) WITH CHECK (true);
+
+-- ============================================
+-- 10. STORAGE BUCKET
 -- ============================================
 -- Create private bucket for plant scan images
 INSERT INTO storage.buckets (id, name, public)
@@ -279,7 +409,7 @@ CREATE POLICY "storage_delete_own" ON storage.objects
   );
 
 -- ============================================
--- 8. UPDATED_AT TRIGGER
+-- 11. UPDATED_AT TRIGGER
 -- ============================================
 CREATE OR REPLACE FUNCTION public.update_updated_at()
 RETURNS TRIGGER AS $$
@@ -301,8 +431,12 @@ CREATE TRIGGER scans_updated_at
   BEFORE UPDATE ON public.scans
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
+CREATE TRIGGER interventions_updated_at
+  BEFORE UPDATE ON public.intervention_recommendations
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
 -- ============================================
--- 9. CHECK CONSTRAINTS
+-- 12. CHECK CONSTRAINTS
 -- ============================================
 ALTER TABLE public.scans
   ADD CONSTRAINT chk_processing_status
@@ -331,3 +465,47 @@ ALTER TABLE public.scans
 ALTER TABLE public.scans
   ADD CONSTRAINT chk_diagnosis_confidence
   CHECK (diagnosis_confidence IS NULL OR (diagnosis_confidence >= 0 AND diagnosis_confidence <= 1));
+
+ALTER TABLE public.intervention_recommendations
+  ADD CONSTRAINT chk_intervention_priority
+  CHECK (priority IN ('high', 'medium', 'low'));
+
+ALTER TABLE public.intervention_recommendations
+  ADD CONSTRAINT chk_intervention_followup_status
+  CHECK (followup_status IN ('pending', 'completed', 'skipped', 'expired'));
+
+ALTER TABLE public.intervention_recommendations
+  ADD CONSTRAINT chk_intervention_source
+  CHECK (source IN ('gemini', 'rules', 'hybrid'));
+
+ALTER TABLE public.intervention_recommendations
+  ADD CONSTRAINT chk_intervention_risk_level
+  CHECK (risk_level IN ('low', 'medium', 'high'));
+
+ALTER TABLE public.intervention_recommendations
+  ADD CONSTRAINT chk_intervention_followup_window
+  CHECK (expected_followup_window_hours > 0);
+
+ALTER TABLE public.intervention_outcomes
+  ADD CONSTRAINT chk_outcome_adherence
+  CHECK (adherence_status IN ('fully', 'partially', 'not_done', 'unknown'));
+
+ALTER TABLE public.intervention_outcomes
+  ADD CONSTRAINT chk_outcome_status
+  CHECK (outcome_status IN ('improved', 'unchanged', 'worse', 'uncertain'));
+
+ALTER TABLE public.intervention_outcomes
+  ADD CONSTRAINT chk_outcome_reported_by
+  CHECK (reported_by IN ('user', 'ai_inferred', 'hybrid'));
+
+ALTER TABLE public.intervention_outcomes
+  ADD CONSTRAINT chk_outcome_confidence
+  CHECK (outcome_confidence IS NULL OR (outcome_confidence >= 0 AND outcome_confidence <= 1));
+
+ALTER TABLE public.followup_missions
+  ADD CONSTRAINT chk_mission_type
+  CHECK (mission_type IN ('check_photo', 'confirm_action', 'log_outcome'));
+
+ALTER TABLE public.followup_missions
+  ADD CONSTRAINT chk_mission_status
+  CHECK (status IN ('pending', 'completed', 'snoozed', 'skipped', 'expired'));

@@ -45,6 +45,29 @@ function isValidDate(dateString: string): boolean {
   return !isNaN(date.getTime());
 }
 
+function triggerJob(
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  jobType: "enrich_weather" | "enrich_air" | "diagnose_ai",
+  scanId: string,
+) {
+  const endpointByJobType: Record<string, string> = {
+    enrich_weather: "enrich-weather",
+    enrich_air: "enrich-air",
+    diagnose_ai: "diagnose-ai",
+  };
+
+  const endpoint = endpointByJobType[jobType];
+  fetch(`${supabaseUrl}/functions/v1/${endpoint}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${supabaseServiceKey}`,
+    },
+    body: JSON.stringify({ scan_id: scanId }),
+  }).catch((e) => console.error(`Failed to trigger ${endpoint}:`, e));
+}
+
 serve(async (req: Request) => {
   const corsHeaders = getCorsHeaders(req.headers.get("Origin"));
 
@@ -208,15 +231,54 @@ serve(async (req: Request) => {
       if (scanError.code === "23505") {
         const { data: existingScan } = await serviceClient
           .from("scans")
-          .select("id, processing_status")
+          .select("id, processing_status, geohash_6, user_id")
           .eq("client_scan_id", body.client_scan_id)
           .single();
+
+        // Do not leak other users' scan IDs if a collision occurs.
+        if (!existingScan || existingScan.user_id !== user.id) {
+          return new Response(
+            JSON.stringify({ error: "Duplicate client_scan_id" }),
+            { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const requiredJobTypes: Array<"enrich_weather" | "enrich_air" | "diagnose_ai"> =
+          existingScan.geohash_6
+            ? ["enrich_weather", "enrich_air", "diagnose_ai"]
+            : ["diagnose_ai"];
+
+        const { data: existingJobs } = await serviceClient
+          .from("scan_jobs")
+          .select("job_type")
+          .eq("scan_id", existingScan.id)
+          .in("job_type", requiredJobTypes);
+
+        const existingJobTypes = new Set(
+          (existingJobs ?? []).map((job) => String(job.job_type))
+        );
+        const missingJobTypes = requiredJobTypes.filter((jobType) => !existingJobTypes.has(jobType));
+
+        if (missingJobTypes.length > 0) {
+          await serviceClient.from("scan_jobs").insert(
+            missingJobTypes.map((jobType) => ({
+              scan_id: existingScan.id,
+              job_type: jobType,
+              status: "queued",
+            }))
+          );
+
+          for (const jobType of missingJobTypes) {
+            triggerJob(supabaseUrl, supabaseServiceKey, jobType, existingScan.id);
+          }
+        }
 
         return new Response(
           JSON.stringify({
             scan_id: existingScan?.id,
             status: existingScan?.processing_status,
             duplicate: true,
+            jobs_enqueued: missingJobTypes.length,
           }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -255,36 +317,13 @@ serve(async (req: Request) => {
 
     // Trigger enrichment functions asynchronously
     if (body.geohash_6) {
-      // Fire and forget: trigger weather enrichment
-      fetch(`${supabaseUrl}/functions/v1/enrich-weather`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${supabaseServiceKey}`,
-        },
-        body: JSON.stringify({ scan_id: scanId }),
-      }).catch((e) => console.error("Failed to trigger enrich-weather:", e));
-
-      // Fire and forget: trigger air quality enrichment
-      fetch(`${supabaseUrl}/functions/v1/enrich-air`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${supabaseServiceKey}`,
-        },
-        body: JSON.stringify({ scan_id: scanId }),
-      }).catch((e) => console.error("Failed to trigger enrich-air:", e));
+      // Fire and forget enrichment triggers
+      triggerJob(supabaseUrl, supabaseServiceKey, "enrich_weather", scanId);
+      triggerJob(supabaseUrl, supabaseServiceKey, "enrich_air", scanId);
     }
 
-    // Fire and forget: trigger AI diagnosis
-    fetch(`${supabaseUrl}/functions/v1/diagnose-ai`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${supabaseServiceKey}`,
-      },
-      body: JSON.stringify({ scan_id: scanId }),
-    }).catch((e) => console.error("Failed to trigger diagnose-ai:", e));
+    // Fire and forget AI diagnosis trigger
+    triggerJob(supabaseUrl, supabaseServiceKey, "diagnose_ai", scanId);
 
     return new Response(
       JSON.stringify({
