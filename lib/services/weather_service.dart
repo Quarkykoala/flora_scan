@@ -126,8 +126,8 @@ class WeatherService {
       }
 
       return const WeatherData();
-    } catch (e) {
-      debugPrint('Weather fetch failed: $e');
+    } catch (e, stackTrace) {
+      debugPrint('Weather fetch failed: $e\nStack trace: $stackTrace');
       return const WeatherData();
     }
   }
