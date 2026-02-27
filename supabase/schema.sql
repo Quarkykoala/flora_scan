@@ -183,6 +183,7 @@ CREATE TABLE IF NOT EXISTS public.scan_jobs (
 CREATE INDEX idx_scan_jobs_scan_id ON public.scan_jobs(scan_id);
 CREATE INDEX idx_scan_jobs_status ON public.scan_jobs(status) WHERE status IN ('queued', 'running', 'retrying');
 CREATE INDEX idx_scan_jobs_type_status ON public.scan_jobs(job_type, status);
+CREATE INDEX idx_scan_jobs_scan_type ON public.scan_jobs(scan_id, job_type);
 
 ALTER TABLE public.scan_jobs ENABLE ROW LEVEL SECURITY;
 
