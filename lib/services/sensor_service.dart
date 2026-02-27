@@ -57,17 +57,9 @@ class SensorService {
       // Sensor unavailable — degrade gracefully
     }
 
-    // Attempt light sensor reading
-    // Note: light_sensor package not available on all devices,
-    // using estimated fallback approach
-    try {
-      // The actual light sensor integration would use platform channels
-      // or the light_sensor package. For now, mark as unavailable.
-      luxSource = 'unavailable';
-      luxReading = null;
-    } catch (_) {
-      luxSource = 'unavailable';
-    }
+    // TODO: Implement actual light sensor reading using platform channels or light_sensor package.
+    // Note: light_sensor package not available on all devices.
+    // For now, these default to 'unavailable' and null as initialized above.
 
     return SensorCapture(
       luxReading: luxReading,
