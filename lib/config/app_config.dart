@@ -8,6 +8,10 @@ class AppConfig {
   // Supabase
   static const String supabaseUrl = String.fromEnvironment('SUPABASE_URL');
   static const String supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+  static const bool appTestMode = bool.fromEnvironment(
+    'APP_TEST_MODE',
+    defaultValue: false,
+  );
 
   // Storage
   static const String imageBucket = 'plant-scans';

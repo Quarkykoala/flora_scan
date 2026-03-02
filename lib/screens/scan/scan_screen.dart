@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,11 +7,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../config/theme.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/scan_provider.dart';
 import '../../providers/plant_provider.dart';
+import '../../providers/scan_provider.dart';
+import '../../services/analytics_service.dart';
+import '../../services/supabase_service.dart';
 import '../../utils/haptics.dart';
 import '../../widgets/radar_sweep_overlay.dart';
-import '../../widgets/glassmorphic_card.dart';
 
 class ScanScreen extends ConsumerStatefulWidget {
   final String? plantId;
@@ -25,6 +28,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   bool _isCameraReady = false;
   bool _isCapturing = false;
   bool _requestDeepAnalysis = true;
+  bool _paywallViewedForThisSession = false;
   String? _cameraErrorMessage;
   String? _selectedPlantId;
   List<CameraDescription> _cameras = [];
@@ -62,7 +66,6 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
         setState(() => _isCameraReady = true);
       }
     } catch (e) {
-      debugPrint('Camera initialization failed: $e');
       if (mounted) {
         setState(() {
           _cameraErrorMessage =
@@ -93,7 +96,6 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       await AppHaptics.scanButtonPress();
 
       final image = await _cameraController!.takePicture();
-
       final pipeline = ref.read(scanPipelineProvider.notifier);
       final scanId = await pipeline.executeScan(
         imagePath: image.path,
@@ -101,16 +103,39 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       );
 
       if (scanId != null && mounted) {
+        final profile = ref.read(userProfileProvider).valueOrNull;
         final isPremium = ref.read(isPremiumProvider);
-
         if (_requestDeepAnalysis && !isPremium) {
-          await _showPaywallBottomSheet();
+          final now = DateTime.now().toUtc();
+          final lastShown = profile?.paywallLastShownAtUtc;
+          final shouldShowPaywall = !_paywallViewedForThisSession ||
+              lastShown == null ||
+              now.difference(lastShown).inHours >= 6;
+
+          await _showTeaserBottomSheet();
+
+          if (shouldShowPaywall) {
+            _paywallViewedForThisSession = true;
+            await AnalyticsService.track(
+              'paywall_viewed',
+              context: {
+                'scan_id': scanId,
+                'plant_id': _selectedPlantId,
+                'surface': 'scan_deep_analysis',
+              },
+            );
+            final userId = SupabaseService.currentUserId;
+            if (userId != null) {
+              await SupabaseService.updateUserProfile(userId, {
+                'paywall_last_shown_at_utc': now.toIso8601String(),
+              });
+            }
+            await _showPaywallBottomSheet(scanId: scanId);
+          }
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text(
-                'Basic scan saved. Upgrade to unlock deep AI diagnosis.',
-              ),
+              content: Text('Basic scan saved. Upgrade to unlock deep AI diagnosis.'),
             ),
           );
           return;
@@ -120,9 +145,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
           context.push('/diagnosis/$scanId');
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Basic telemetry scan saved successfully.'),
-            ),
+            const SnackBar(content: Text('Basic telemetry scan saved successfully.')),
           );
         }
       }
@@ -146,63 +169,30 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     final plantsAsync = ref.watch(plantsProvider);
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFFCADAC6),
       body: Stack(
         children: [
-          // Camera preview
           if (_isCameraReady && _cameraController != null)
-            Positioned.fill(
-              child: CameraPreview(_cameraController!),
-            )
+            Positioned.fill(child: CameraPreview(_cameraController!))
           else if (_cameraErrorMessage != null)
             Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.camera_alt_outlined, color: Colors.white70, size: 48),
-                    const SizedBox(height: 16),
-                    Text(
-                      _cameraErrorMessage!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white70),
-                    ),
-                    const SizedBox(height: 16),
-                    OutlinedButton(
-                      onPressed: _initializeCamera,
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.white54),
-                      ),
-                      child: const Text('Retry', style: TextStyle(color: Colors.white)),
-                    ),
-                  ],
-                ),
+              child: Text(
+                _cameraErrorMessage!,
+                style: const TextStyle(color: Colors.white),
+                textAlign: TextAlign.center,
               ),
             )
           else
-            const Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(color: Colors.white),
-                  SizedBox(height: 16),
-                  Text(
-                    'Initializing camera...',
-                    style: TextStyle(color: Colors.white70),
-                  ),
-                ],
-              ),
-            ),
+            const Center(child: CircularProgressIndicator(color: Colors.white)),
 
-          // Custom AppBar Overlay
           Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
+            top: 12,
+            left: 14,
+            right: 14,
             child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              child: _Frost(
+                borderRadius: 20,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 child: Row(
                   children: [
                     IconButton(
@@ -221,163 +211,112 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          shadows: [
-                            Shadow(color: Colors.black54, blurRadius: 4),
-                          ],
+                          fontSize: 38,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 48), // Balance close button
+                    const SizedBox(width: 44),
                   ],
                 ),
               ),
             ),
           ),
 
-          // Radar sweep overlay (during processing)
           if (pipelineState == ScanPipelineState.capturing ||
               pipelineState == ScanPipelineState.uploading ||
               pipelineState == ScanPipelineState.processing)
             Center(
               child: RadarSweepOverlay(
                 isActive: true,
-                size: MediaQuery.of(context).size.width * 0.8,
+                size: MediaQuery.of(context).size.width * 0.74,
               ),
             ),
 
-          // Scanner frame overlay
-          if (pipelineState == ScanPipelineState.idle)
-            Center(
-              child: Container(
-                width: MediaQuery.of(context).size.width * 0.75,
-                height: MediaQuery.of(context).size.width * 0.75,
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Stack(
-                  children: [
-                    // Corner markers
-                    ..._buildCornerMarkers(),
-                  ],
-                ),
-              ),
-            ),
-
-          // Status overlay
-          if (pipelineState != ScanPipelineState.idle)
-            Positioned(
-              bottom: 180,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: GlassmorphicCard(
-                  borderRadius: 30,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  backgroundColor: Colors.black.withValues(alpha: 0.4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        _getStatusText(pipelineState),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-          // Bottom controls
           Positioned(
-            bottom: 0,
+            bottom: 14,
             left: 0,
             right: 0,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 48),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.8),
-                  ],
-                ),
-              ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Plant selector
                   plantsAsync.when(
                     loading: () => const SizedBox.shrink(),
                     error: (_, __) => const SizedBox.shrink(),
                     data: (plants) {
-                      if (plants.isEmpty) {
-                        return const Text(
-                          'No plants added yet',
-                          style: TextStyle(color: Colors.white70),
-                        );
-                      }
-                      return GlassmorphicCard(
-                        borderRadius: 16,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                        backgroundColor: Colors.white.withValues(alpha: 0.15),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _selectedPlantId,
-                            hint: const Text(
-                              'Select plant',
-                              style: TextStyle(color: Colors.white70),
+                      if (plants.isEmpty) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: _Frost(
+                          borderRadius: 16,
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: _selectedPlantId,
+                              hint: const Text('Select plant'),
+                              isExpanded: true,
+                              items: plants.map((plant) {
+                                return DropdownMenuItem(
+                                  value: plant.id,
+                                  child: Text(plant.nickname),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() => _selectedPlantId = value);
+                              },
                             ),
-                            dropdownColor: Colors.grey.shade900,
-                            iconEnabledColor: Colors.white,
-                            isExpanded: true,
-                            style: const TextStyle(color: Colors.white, fontSize: 16),
-                            items: plants.map((plant) {
-                              return DropdownMenuItem(
-                                value: plant.id,
-                                child: Text(plant.nickname),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              setState(() => _selectedPlantId = value);
-                            },
                           ),
                         ),
                       );
                     },
                   ),
-                  const SizedBox(height: 32),
-                  GlassmorphicCard(
-                    borderRadius: 16,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
+                  GestureDetector(
+                    onTap: (_isCapturing || !_isCameraReady) ? null : _captureAndScan,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 160,
+                      height: 160,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: (_isCapturing || !_isCameraReady)
+                            ? Colors.grey.withValues(alpha: 0.7)
+                            : Colors.white.withValues(alpha: 0.34),
+                        border: Border.all(color: Colors.white, width: 6),
+                      ),
+                      child: Center(
+                        child: Container(
+                          width: 108,
+                          height: 108,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: (_isCapturing || !_isCameraReady)
+                                ? Colors.grey.shade400
+                                : Colors.white.withValues(alpha: 0.8),
+                          ),
+                          child: _isCapturing
+                              ? const SizedBox()
+                              : const Icon(Icons.camera_alt, color: Colors.black45, size: 48),
+                        ),
+                      ),
                     ),
-                    backgroundColor: Colors.white.withValues(alpha: 0.12),
+                  ),
+                  const SizedBox(height: 16),
+                  _Frost(
+                    borderRadius: 22,
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
                     child: SwitchListTile(
                       dense: true,
                       contentPadding: EdgeInsets.zero,
                       activeThumbColor: AppTheme.primaryGreen,
                       title: const Text(
                         'Deep AI Analysis',
-                        style: TextStyle(color: Colors.white),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
                       ),
                       subtitle: const Text(
                         'Detailed diagnosis + treatment plan',
@@ -389,42 +328,6 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                       },
                     ),
                   ),
-                  const SizedBox(height: 16),
-
-                  // Capture button
-                  GestureDetector(
-                    onTap: (_isCapturing || !_isCameraReady) ? null : _captureAndScan,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: (_isCapturing || !_isCameraReady)
-                            ? Colors.grey
-                            : Colors.white.withValues(alpha: 0.2), // Glassy ring
-                        border: Border.all(
-                          color: Colors.white,
-                          width: 4,
-                        ),
-                      ),
-                      child: Center(
-                        child: Container(
-                          width: 64,
-                          height: 64,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: (_isCapturing || !_isCameraReady)
-                                ? Colors.grey.shade400
-                                : Colors.white,
-                          ),
-                          child: _isCapturing
-                              ? const SizedBox()
-                              : const Icon(Icons.camera_alt, color: Colors.black54, size: 32),
-                        ),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -434,88 +337,15 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
     );
   }
 
-  List<Widget> _buildCornerMarkers() {
-    const markerLength = 24.0;
-    const markerWidth = 4.0;
-    const color = Colors.white; // Clean white markers
-
-    return [
-      // Top-left
-      Positioned(
-        top: 0, left: 0,
-        child: _CornerMarker(
-          markerLength: markerLength,
-          markerWidth: markerWidth,
-          color: color,
-          isTop: true,
-          isLeft: true,
-        ),
-      ),
-      // Top-right
-      Positioned(
-        top: 0, right: 0,
-        child: _CornerMarker(
-          markerLength: markerLength,
-          markerWidth: markerWidth,
-          color: color,
-          isTop: true,
-          isLeft: false,
-        ),
-      ),
-      // Bottom-left
-      Positioned(
-        bottom: 0, left: 0,
-        child: _CornerMarker(
-          markerLength: markerLength,
-          markerWidth: markerWidth,
-          color: color,
-          isTop: false,
-          isLeft: true,
-        ),
-      ),
-      // Bottom-right
-      Positioned(
-        bottom: 0, right: 0,
-        child: _CornerMarker(
-          markerLength: markerLength,
-          markerWidth: markerWidth,
-          color: color,
-          isTop: false,
-          isLeft: false,
-        ),
-      ),
-    ];
-  }
-
-  String _getStatusText(ScanPipelineState state) {
-    switch (state) {
-      case ScanPipelineState.capturing:
-        return 'Capturing telemetry...';
-      case ScanPipelineState.queued:
-        return 'Queued for upload';
-      case ScanPipelineState.uploading:
-        return 'Uploading scan...';
-      case ScanPipelineState.processing:
-        return 'Analyzing plant...';
-      case ScanPipelineState.completed:
-        return 'Analysis complete!';
-      case ScanPipelineState.failed:
-        return 'Analysis failed';
-      case ScanPipelineState.idle:
-        return '';
-    }
-  }
-
-  Future<void> _showPaywallBottomSheet() async {
+  Future<void> _showPaywallBottomSheet({required String scanId}) async {
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return GlassmorphicCard(
+        return _Frost(
           borderRadius: 24,
-          blur: 20,
+          color: Colors.black.withValues(alpha: 0.62),
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
-          backgroundColor: Colors.black.withValues(alpha: 0.65),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -543,17 +373,26 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                 ),
                 child: const Text(
                   r'Premium Annual: $29.99/year',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                 ),
               ),
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () async {
+                    await AnalyticsService.track(
+                      'paywall_cta_tapped',
+                      context: {
+                        'scan_id': scanId,
+                        'surface': 'scan_paywall',
+                        'plan': 'annual_29_99',
+                      },
+                    );
+                    if (context.mounted) {
+                      Navigator.of(context).pop();
+                    }
+                  },
                   child: const Text('Upgrade to Premium'),
                 ),
               ),
@@ -563,89 +402,75 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       },
     );
   }
-}
 
-class _CornerMarker extends StatelessWidget {
-  final double markerLength;
-  final double markerWidth;
-  final Color color;
-  final bool isTop;
-  final bool isLeft;
-
-  const _CornerMarker({
-    required this.markerLength,
-    required this.markerWidth,
-    required this.color,
-    required this.isTop,
-    required this.isLeft,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: markerLength,
-      height: markerLength,
-      child: CustomPaint(
-        painter: _CornerPainter(
-          color: color,
-          strokeWidth: markerWidth,
-          isTop: isTop,
-          isLeft: isLeft,
-        ),
-      ),
+  Future<void> _showTeaserBottomSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return _Frost(
+          borderRadius: 20,
+          color: Colors.black.withValues(alpha: 0.55),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Text(
+                'Diagnosis Preview',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              SizedBox(height: 10),
+              Text(
+                'We detected possible stress patterns in the leaves.',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+              ),
+              SizedBox(height: 6),
+              Text(
+                'Full treatment plan and recovery intelligence are available on Premium.',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
 
-class _CornerPainter extends CustomPainter {
-  final Color color;
-  final double strokeWidth;
-  final bool isTop;
-  final bool isLeft;
+class _Frost extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final double borderRadius;
+  final Color? color;
 
-  _CornerPainter({
-    required this.color,
-    required this.strokeWidth,
-    required this.isTop,
-    required this.isLeft,
+  const _Frost({
+    required this.child,
+    this.padding = const EdgeInsets.all(14),
+    this.borderRadius = 20,
+    this.color,
   });
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-
-    final path = Path();
-
-    // Add slight curve to corners
-    if (isTop && isLeft) {
-      path.moveTo(0, size.height);
-      path.lineTo(0, 8);
-      path.quadraticBezierTo(0, 0, 8, 0);
-      path.lineTo(size.width, 0);
-    } else if (isTop && !isLeft) {
-      path.moveTo(0, 0);
-      path.lineTo(size.width - 8, 0);
-      path.quadraticBezierTo(size.width, 0, size.width, 8);
-      path.lineTo(size.width, size.height);
-    } else if (!isTop && isLeft) {
-      path.moveTo(0, 0);
-      path.lineTo(0, size.height - 8);
-      path.quadraticBezierTo(0, size.height, 8, size.height);
-      path.lineTo(size.width, size.height);
-    } else {
-      path.moveTo(0, size.height);
-      path.lineTo(size.width - 8, size.height);
-      path.quadraticBezierTo(size.width, size.height, size.width, size.height - 8);
-      path.lineTo(size.width, 0);
-    }
-
-    canvas.drawPath(path, paint);
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(borderRadius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            color: color ?? Colors.white.withValues(alpha: 0.30),
+            borderRadius: BorderRadius.circular(borderRadius),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.50), width: 1.1),
+          ),
+          child: child,
+        ),
+      ),
+    );
   }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

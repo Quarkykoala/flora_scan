@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -32,135 +34,137 @@ class SettingsScreen extends ConsumerWidget {
     final userProfileAsync = ref.watch(userProfileProvider);
     final currentAppLocale = ref.watch(appLocaleProvider);
     final queueSize = ref.watch(offlineQueueSizeProvider);
-    final selectedLocaleCode =
-        currentAppLocale?.languageCode ?? userProfileAsync.valueOrNull?.localeCode ?? 'en';
+    final selectedLocaleCode = currentAppLocale?.languageCode ??
+        userProfileAsync.valueOrNull?.localeCode ??
+        'en';
 
     return Scaffold(
+      backgroundColor: const Color(0xFFE8F2EA),
       appBar: AppBar(
-        title: Text(l10n.settings),
+        title: const Text(
+          'FloraScan Settings',
+          style: TextStyle(fontSize: 34, fontWeight: FontWeight.w700),
+        ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: Stack(
         children: [
-          const _SectionHeader(title: 'Account'),
-          Card(
-            child: Column(
-              children: [
-                userProfileAsync.when(
+          const _Backdrop(),
+          ListView(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+            children: [
+              _SectionCard(
+                title: 'Account',
+                child: userProfileAsync.when(
                   loading: () => const ListTile(
                     leading: CircularProgressIndicator(),
                     title: Text('Loading...'),
                   ),
                   error: (_, __) => const ListTile(
-                    leading: Icon(Icons.error),
+                    leading: Icon(Icons.error_outline),
                     title: Text('Error loading profile'),
                   ),
                   data: (profile) => ListTile(
-                    leading: const CircleAvatar(
-                      backgroundColor: AppTheme.primaryGreen,
-                      child: Icon(Icons.person, color: Colors.white),
-                    ),
-                    title: Text(profile?.id.substring(0, 8) ?? 'Guest'),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 2),
+                    leading: const Icon(Icons.account_circle_outlined, size: 36),
+                    title: Text(profile?.isPremium == true ? 'Premium User' : 'Guest'),
                     subtitle: Text('Locale: $selectedLocaleCode'),
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          _SectionHeader(title: l10n.language),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.language),
-              title: Text(l10n.language),
-              subtitle: Text(supportedLocales[selectedLocaleCode] ?? 'English'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => _showLanguagePicker(context, ref),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          const _SectionHeader(title: 'Privacy & Data'),
-          Card(
-            child: Column(
-              children: [
-                SwitchListTile(
-                  secondary: const Icon(Icons.science),
-                  title: Text(l10n.researchConsent),
-                  subtitle: Text(l10n.researchConsentSubtitle),
-                  value: userProfileAsync.valueOrNull?.researchConsent ?? true,
-                  onChanged: (value) {
-                    ref.read(authNotifierProvider.notifier).updateResearchConsent(value);
-                    ref.invalidate(userProfileProvider);
-                  },
+              ),
+              const SizedBox(height: 12),
+              _SectionCard(
+                title: 'Language',
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 2),
+                  leading: const Icon(Icons.language_outlined),
+                  title: Text(l10n.language),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(supportedLocales[selectedLocaleCode] ?? 'English'),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.chevron_right),
+                    ],
+                  ),
+                  onTap: () => _showLanguagePicker(context, ref),
                 ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.privacy_tip),
-                  title: Text(l10n.privacyPolicy),
-                  trailing: const Icon(Icons.open_in_new, size: 18),
-                  onTap: () {},
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          const _SectionHeader(title: 'Sync & Storage'),
-          Card(
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.cloud_upload),
-                  title: Text(l10n.pendingUploads),
-                  trailing: Text(
-                    '$queueSize',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: queueSize > 0 ? AppTheme.warningAmber : AppTheme.primaryGreen,
+              ),
+              const SizedBox(height: 12),
+              _SectionCard(
+                title: 'Privacy & Data',
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 2),
+                      secondary: const Icon(Icons.science_outlined),
+                      title: Text(l10n.researchConsent),
+                      subtitle: Text(l10n.researchConsentSubtitle),
+                      activeThumbColor: const Color(0xFF35E37B),
+                      value: userProfileAsync.valueOrNull?.researchConsent ?? true,
+                      onChanged: (value) {
+                        ref
+                            .read(authNotifierProvider.notifier)
+                            .updateResearchConsent(value);
+                        ref.invalidate(userProfileProvider);
+                      },
                     ),
-                  ),
+                    ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 2),
+                      leading: const Icon(Icons.privacy_tip_outlined),
+                      title: Text(l10n.privacyPolicy),
+                      trailing: const Icon(Icons.open_in_new, size: 18),
+                    ),
+                  ],
                 ),
-                if (queueSize > 0) ...[
-                  const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(Icons.sync),
-                    title: Text(l10n.forceSyncNow),
-                    onTap: () {
-                      OfflineQueueService.forceSync();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Syncing...')),
-                      );
-                    },
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          const _SectionHeader(title: 'About'),
-          Card(
-            child: Column(
-              children: [
-                const ListTile(
-                  leading: Icon(Icons.info_outline),
+              ),
+              const SizedBox(height: 12),
+              _SectionCard(
+                title: 'Sync & Storage',
+                child: Column(
+                  children: [
+                    ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 2),
+                      leading: const Icon(Icons.cloud_outlined),
+                      title: Text(l10n.pendingUploads),
+                      trailing: Text(
+                        '$queueSize',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          color: queueSize > 0
+                              ? AppTheme.warningAmber
+                              : const Color(0xFF2ECC71),
+                        ),
+                      ),
+                    ),
+                    if (queueSize > 0)
+                      ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 2),
+                        leading: const Icon(Icons.sync),
+                        title: Text(l10n.forceSyncNow),
+                        onTap: () {
+                          OfflineQueueService.forceSync();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Syncing...')),
+                          );
+                        },
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              const _SectionCard(
+                title: 'About',
+                child: ListTile(
+                  contentPadding: EdgeInsets.symmetric(horizontal: 2),
+                  leading: Icon(Icons.eco_outlined),
                   title: Text('FloraScan'),
                   subtitle: Text('Version 1.0.0'),
                 ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.code),
-                  title: const Text('Licenses'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => showLicensePage(context: context),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const SizedBox(height: 24),
         ],
       ),
     );
@@ -190,9 +194,7 @@ class SettingsScreen extends ConsumerWidget {
                 await ref.read(appLocaleProvider.notifier).setLocale(entry.key);
                 await ref.read(authNotifierProvider.notifier).updateLocale(entry.key);
                 ref.invalidate(userProfileProvider);
-                if (ctx.mounted) {
-                  Navigator.pop(ctx);
-                }
+                if (ctx.mounted) Navigator.pop(ctx);
               },
             );
           }),
@@ -202,21 +204,86 @@ class SettingsScreen extends ConsumerWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
+class _SectionCard extends StatelessWidget {
   final String title;
+  final Widget child;
 
-  const _SectionHeader({required this.title});
+  const _SectionCard({required this.title, required this.child});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: AppTheme.primaryGreen,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(22),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.30),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.52),
+              width: 1.2,
             ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              child,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Backdrop extends StatelessWidget {
+  const _Backdrop();
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: Stack(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFFD9E9D8),
+                  Color(0xFFC6DFC4),
+                  Color(0xFFB9D6B8),
+                ],
+              ),
+            ),
+          ),
+          Positioned(top: -30, left: -40, child: _blob(const Color(0x664DAA55), 230)),
+          Positioned(bottom: -70, right: -30, child: _blob(const Color(0x662F7D3A), 280)),
+          Positioned(top: 280, right: -40, child: _blob(const Color(0x44D4ECCC), 200)),
+        ],
+      ),
+    );
+  }
+
+  Widget _blob(Color color, double size) {
+    return ImageFiltered(
+      imageFilter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+        ),
       ),
     );
   }

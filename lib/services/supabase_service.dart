@@ -219,6 +219,20 @@ class SupabaseService {
     await client.from('care_events').insert(data);
   }
 
+  /// Log analytics event.
+  static Future<void> logAnalyticsEvent({
+    required String eventName,
+    Map<String, dynamic> eventContext = const {},
+  }) async {
+    final userId = currentUserId;
+    await client.from('analytics_events').insert({
+      'user_id': userId,
+      'event_name': eventName,
+      'event_context': eventContext,
+      'created_at_utc': DateTime.now().toUtc().toIso8601String(),
+    });
+  }
+
   /// Get care events for a plant.
   static Future<List<Map<String, dynamic>>> getCareEvents(String plantId) async {
     final response = await client

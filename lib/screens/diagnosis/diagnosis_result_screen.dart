@@ -14,6 +14,7 @@ import '../../providers/followup_mission_provider.dart';
 import '../../providers/intervention_outcome_provider.dart';
 import '../../providers/intervention_recommendation_provider.dart';
 import '../../providers/scan_provider.dart';
+import '../../services/analytics_service.dart';
 import '../../widgets/ambient_background.dart';
 import '../../widgets/confidence_chip.dart';
 import '../../widgets/glassmorphic_card.dart';
@@ -21,6 +22,7 @@ import '../../widgets/health_score_indicator.dart';
 
 class DiagnosisResultScreen extends ConsumerWidget {
   final String scanId;
+  static final Set<String> _commerceImpressions = <String>{};
 
   const DiagnosisResultScreen({super.key, required this.scanId});
 
@@ -79,6 +81,7 @@ class DiagnosisResultScreen extends ConsumerWidget {
 
   Widget _buildResultContent(BuildContext context, WidgetRef ref, Scan scan) {
     final commerceLinks = _extractCommerceLinks(scan);
+    _trackCommerceImpressions(scan.id, commerceLinks);
     final recommendationsAsync =
         ref.watch(scanInterventionRecommendationsProvider(scan.id));
     final missionsAsync = ref.watch(plantFollowupMissionsProvider(scan.plantId));
@@ -293,6 +296,15 @@ class DiagnosisResultScreen extends ConsumerWidget {
                                                 context: context,
                                                 recommendation: recommendation,
                                                 onSubmit: (outcomeDraft) async {
+                                                  await AnalyticsService.track(
+                                                    'outcome_submit_started',
+                                                    context: {
+                                                      'scan_id': scan.id,
+                                                      'intervention_id': recommendation.id,
+                                                      'recommendation_code':
+                                                          recommendation.recommendationCode,
+                                                    },
+                                                  );
                                                   await outcomeNotifier.submitOutcome(
                                                     interventionId: recommendation.id,
                                                     adherenceStatus:
@@ -304,6 +316,15 @@ class DiagnosisResultScreen extends ConsumerWidget {
                                                     outcomeNotes: outcomeDraft.notes,
                                                     outcomeConfidence:
                                                         outcomeDraft.outcomeConfidence,
+                                                  );
+                                                  await AnalyticsService.track(
+                                                    'outcome_submit_completed',
+                                                    context: {
+                                                      'scan_id': scan.id,
+                                                      'intervention_id': recommendation.id,
+                                                      'recommendation_code':
+                                                          recommendation.recommendationCode,
+                                                    },
                                                   );
                                                   ref.invalidate(
                                                     plantFollowupMissionsProvider(
@@ -339,15 +360,54 @@ class DiagnosisResultScreen extends ConsumerWidget {
                                         style: FilledButton.styleFrom(
                                           backgroundColor: AppTheme.primaryGreen,
                                         ),
-                                        onPressed: () => _openCommerceLink(
-                                          context,
-                                          commerceLinks.first,
-                                        ),
+                                        onPressed: () {
+                                          final link = _bestCommerceLinkForRecommendation(
+                                            recommendation.recommendationCode,
+                                            commerceLinks,
+                                          );
+                                          _openCommerceLink(
+                                            context,
+                                            link,
+                                            scanId: scan.id,
+                                            recommendationCode:
+                                                recommendation.recommendationCode,
+                                          );
+                                        },
                                         icon: const Icon(Icons.shopping_bag_outlined),
                                         label: const Text('Buy Treatment Now'),
                                       ),
                                     ),
                                   ],
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: OutlinedButton.icon(
+                                      onPressed: outcomeState.isLoading
+                                          ? null
+                                          : () async {
+                                              await AnalyticsService.track(
+                                                'recommendation_done_tapped',
+                                                context: {
+                                                  'scan_id': scan.id,
+                                                  'intervention_id': recommendation.id,
+                                                  'recommendation_code':
+                                                      recommendation.recommendationCode,
+                                                },
+                                              );
+                                              await outcomeNotifier.submitOutcome(
+                                                interventionId: recommendation.id,
+                                                adherenceStatus: AdherenceStatus.fully,
+                                                outcomeStatus: OutcomeStatus.uncertain,
+                                                adherenceNotes:
+                                                    'Quick done action tapped.',
+                                              );
+                                              ref.invalidate(
+                                                plantFollowupMissionsProvider(scan.plantId),
+                                              );
+                                            },
+                                      icon: const Icon(Icons.done_all),
+                                      label: const Text('Done'),
+                                    ),
+                                  ),
                                 ],
                               ),
                             ],
@@ -468,8 +528,8 @@ class DiagnosisResultScreen extends ConsumerWidget {
     required Future<void> Function(_OutcomeDraft) onSubmit,
   }) async {
     final notesController = TextEditingController();
-    var selectedOutcome = OutcomeStatus.improved;
-    var selectedAdherence = AdherenceStatus.fully;
+    OutcomeStatus? selectedOutcome;
+    AdherenceStatus? selectedAdherence;
     var includeConfidence = false;
     var confidence = 0.8;
 
@@ -566,15 +626,37 @@ class DiagnosisResultScreen extends ConsumerWidget {
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
-                        onPressed: () => onSubmit(
-                          _OutcomeDraft(
-                            adherenceStatus: selectedAdherence,
-                            outcomeStatus: selectedOutcome,
-                            notes: notesController.text,
-                            outcomeConfidence:
-                                includeConfidence ? confidence : null,
-                          ),
-                        ),
+                        onPressed: () {
+                          if (selectedAdherence == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Adherence not selected. Saving as unknown.',
+                                ),
+                              ),
+                            );
+                          }
+                          if (selectedOutcome == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Outcome not selected. Saving as uncertain.',
+                                ),
+                              ),
+                            );
+                          }
+                          onSubmit(
+                            _OutcomeDraft(
+                              adherenceStatus:
+                                  selectedAdherence ?? AdherenceStatus.unknown,
+                              outcomeStatus:
+                                  selectedOutcome ?? OutcomeStatus.uncertain,
+                              notes: notesController.text,
+                              outcomeConfidence:
+                                  includeConfidence ? confidence : null,
+                            ),
+                          );
+                        },
                         icon: const Icon(Icons.save),
                         label: const Text('Save outcome'),
                       ),
@@ -621,16 +703,66 @@ class DiagnosisResultScreen extends ConsumerWidget {
   Future<void> _openCommerceLink(
     BuildContext context,
     _CommerceLink link,
+    {
+    required String scanId,
+    required String recommendationCode,
+    }
   ) async {
     final encodedQuery = Uri.encodeQueryComponent(link.searchQuery);
     final url = link.affiliateUrlTemplate.replaceAll('{query}', encodedQuery);
     final uri = Uri.tryParse(url);
     if (uri == null) return;
 
+    await AnalyticsService.track(
+      'commerce_link_click',
+      context: {
+        'scan_id': scanId,
+        'recommendation_code': recommendationCode,
+        'product_type': link.productType,
+        'search_query': link.searchQuery,
+      },
+    );
+
     final launched = await launchUrl(uri, mode: LaunchMode.platformDefault);
     if (!launched && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not open treatment link')),
+      );
+    }
+  }
+
+  _CommerceLink _bestCommerceLinkForRecommendation(
+    String recommendationCode,
+    List<_CommerceLink> links,
+  ) {
+    final code = recommendationCode.toLowerCase();
+    for (final link in links) {
+      final label = '${link.productType} ${link.searchQuery}'.toLowerCase();
+      if (code.contains('pest') && (label.contains('neem') || label.contains('pest'))) {
+        return link;
+      }
+      if (code.contains('fung') && label.contains('fung')) {
+        return link;
+      }
+      if (code.contains('humid') && label.contains('humid')) {
+        return link;
+      }
+    }
+    return links.first;
+  }
+
+  void _trackCommerceImpressions(String scanId, List<_CommerceLink> links) {
+    for (final link in links) {
+      final key = '$scanId:${link.productType}:${link.searchQuery}';
+      if (_commerceImpressions.contains(key)) continue;
+      _commerceImpressions.add(key);
+      AnalyticsService.track(
+        'commerce_link_impression',
+        context: {
+          'scan_id': scanId,
+          'product_type': link.productType,
+          'search_query': link.searchQuery,
+        },
       );
     }
   }

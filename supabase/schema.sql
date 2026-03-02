@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS public.users (
   research_consent BOOLEAN NOT NULL DEFAULT false,
   is_premium BOOLEAN NOT NULL DEFAULT false,
   free_scans_remaining INT NOT NULL DEFAULT 10,
+  paywall_last_shown_at_utc TIMESTAMPTZ NULL,
+  premium_source TEXT NULL,
   climate_zone TEXT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -25,6 +27,12 @@ ALTER TABLE public.users
 
 ALTER TABLE public.users
   ADD COLUMN IF NOT EXISTS free_scans_remaining INT NOT NULL DEFAULT 10;
+
+ALTER TABLE public.users
+  ADD COLUMN IF NOT EXISTS paywall_last_shown_at_utc TIMESTAMPTZ NULL;
+
+ALTER TABLE public.users
+  ADD COLUMN IF NOT EXISTS premium_source TEXT NULL;
 
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
@@ -50,6 +58,33 @@ CREATE TABLE IF NOT EXISTS public.b2b_api_keys (
 
 CREATE INDEX IF NOT EXISTS idx_b2b_api_keys_company_name
   ON public.b2b_api_keys(company_name);
+
+-- ============================================
+-- ANALYTICS EVENTS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.analytics_events (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NULL REFERENCES public.users(id) ON DELETE SET NULL,
+  event_name TEXT NOT NULL,
+  event_context JSONB NOT NULL DEFAULT '{}',
+  created_at_utc TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_analytics_events_user_time
+  ON public.analytics_events(user_id, created_at_utc DESC);
+CREATE INDEX IF NOT EXISTS idx_analytics_events_name_time
+  ON public.analytics_events(event_name, created_at_utc DESC);
+
+ALTER TABLE public.analytics_events ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "analytics_select_own_or_null" ON public.analytics_events
+  FOR SELECT USING (user_id = auth.uid() OR user_id IS NULL);
+
+CREATE POLICY "analytics_insert_own_or_null" ON public.analytics_events
+  FOR INSERT WITH CHECK (user_id = auth.uid() OR user_id IS NULL);
+
+CREATE POLICY "analytics_service_all" ON public.analytics_events
+  FOR ALL USING (true) WITH CHECK (true);
 
 -- ============================================
 -- 2. PLANTS TABLE
@@ -464,6 +499,19 @@ CREATE TRIGGER interventions_updated_at
 -- ============================================
 -- 12. CHECK CONSTRAINTS
 -- ============================================
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_analytics_events_event_name'
+      AND conrelid = 'public.analytics_events'::regclass
+  ) THEN
+    ALTER TABLE public.analytics_events
+      ADD CONSTRAINT chk_analytics_events_event_name
+      CHECK (length(trim(event_name)) > 0);
+  END IF;
+END $$;
+
 DO $$
 BEGIN
   IF NOT EXISTS (

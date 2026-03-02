@@ -19,6 +19,18 @@ final pendingFollowupMissionsProvider =
   return missions;
 });
 
+/// Provides all follow-up missions for the current user.
+final allFollowupMissionsProvider =
+    FutureProvider.autoDispose<List<FollowupMission>>((ref) async {
+  final userId = SupabaseService.currentUserId;
+  if (userId == null) return [];
+
+  final data = await SupabaseService.getFollowupMissions(userId: userId);
+  final missions = data.map((json) => FollowupMission.fromJson(json)).toList();
+  await NotificationService.syncMissionReminders(missions);
+  return missions;
+});
+
 /// Provides follow-up missions for a plant.
 final plantFollowupMissionsProvider = FutureProvider.autoDispose
     .family<List<FollowupMission>, String>((ref, plantId) async {

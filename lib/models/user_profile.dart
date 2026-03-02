@@ -5,6 +5,8 @@ class UserProfile {
   final bool researchConsent;
   final bool isPremium;
   final int freeScansRemaining;
+  final DateTime? paywallLastShownAtUtc;
+  final String? premiumSource;
   final String? climateZone;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -15,6 +17,8 @@ class UserProfile {
     this.researchConsent = false,
     this.isPremium = false,
     this.freeScansRemaining = 0,
+    this.paywallLastShownAtUtc,
+    this.premiumSource,
     this.climateZone,
     required this.createdAt,
     required this.updatedAt,
@@ -27,6 +31,10 @@ class UserProfile {
       researchConsent: json['research_consent'] as bool? ?? false,
       isPremium: json['is_premium'] as bool? ?? false,
       freeScansRemaining: json['free_scans_remaining'] as int? ?? 0,
+      paywallLastShownAtUtc: json['paywall_last_shown_at_utc'] != null
+          ? DateTime.parse(json['paywall_last_shown_at_utc'] as String)
+          : null,
+      premiumSource: json['premium_source'] as String?,
       climateZone: json['climate_zone'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
@@ -40,6 +48,8 @@ class UserProfile {
       'research_consent': researchConsent,
       'is_premium': isPremium,
       'free_scans_remaining': freeScansRemaining,
+      'paywall_last_shown_at_utc': paywallLastShownAtUtc?.toIso8601String(),
+      'premium_source': premiumSource,
       'climate_zone': climateZone,
     };
   }
@@ -49,6 +59,8 @@ class UserProfile {
     bool? researchConsent,
     bool? isPremium,
     int? freeScansRemaining,
+    DateTime? paywallLastShownAtUtc,
+    String? premiumSource,
     String? climateZone,
   }) {
     return UserProfile(
@@ -57,6 +69,8 @@ class UserProfile {
       researchConsent: researchConsent ?? this.researchConsent,
       isPremium: isPremium ?? this.isPremium,
       freeScansRemaining: freeScansRemaining ?? this.freeScansRemaining,
+      paywallLastShownAtUtc: paywallLastShownAtUtc ?? this.paywallLastShownAtUtc,
+      premiumSource: premiumSource ?? this.premiumSource,
       climateZone: climateZone ?? this.climateZone,
       createdAt: createdAt,
       updatedAt: DateTime.now(),
@@ -73,6 +87,8 @@ class UserProfile {
         other.researchConsent == researchConsent &&
         other.isPremium == isPremium &&
         other.freeScansRemaining == freeScansRemaining &&
+        other.paywallLastShownAtUtc == paywallLastShownAtUtc &&
+        other.premiumSource == premiumSource &&
         other.climateZone == climateZone &&
         other.createdAt == createdAt &&
         other.updatedAt == updatedAt;
@@ -85,6 +101,8 @@ class UserProfile {
         researchConsent.hashCode ^
         isPremium.hashCode ^
         freeScansRemaining.hashCode ^
+        paywallLastShownAtUtc.hashCode ^
+        premiumSource.hashCode ^
         climateZone.hashCode ^
         createdAt.hashCode ^
         updatedAt.hashCode;

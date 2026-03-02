@@ -27,6 +27,14 @@ type CommerceLink = {
   affiliate_url_template: string;
 };
 
+const DEFAULT_AFFILIATE_TEMPLATE = "https://www.amazon.in/s?k={query}";
+const ALLOWED_AFFILIATE_HOSTS = new Set([
+  "www.amazon.in",
+  "amazon.in",
+  "www.amazon.com",
+  "amazon.com",
+]);
+
 const SAFE_RECOMMENDATION_CODES = new Set([
   "reduce_watering_frequency",
   "increase_airflow",
@@ -70,6 +78,40 @@ function toCanonicalCode(input: string): string {
   return "monitor_soil_moisture";
 }
 
+function toSnakeCase(input: string, fallback: string): string {
+  const normalized = input
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s_]/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return normalized || fallback;
+}
+
+function confidenceBand(score: number): "low" | "medium" | "high" {
+  if (score < 0.4) return "low";
+  if (score < 0.75) return "medium";
+  return "high";
+}
+
+function sanitizeAffiliateTemplate(value: string | null | undefined): string {
+  const raw = (value ?? "").trim();
+  if (!raw.includes("{query}")) return DEFAULT_AFFILIATE_TEMPLATE;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch (_error) {
+    return DEFAULT_AFFILIATE_TEMPLATE;
+  }
+
+  if (parsed.protocol !== "https:") return DEFAULT_AFFILIATE_TEMPLATE;
+  if (!ALLOWED_AFFILIATE_HOSTS.has(parsed.hostname)) return DEFAULT_AFFILIATE_TEMPLATE;
+
+  return raw;
+}
+
 function buildDiagnosisPrompt(params: {
   plant: Record<string, unknown>;
   scan: Record<string, unknown>;
@@ -84,7 +126,7 @@ function buildDiagnosisPrompt(params: {
       ? "\nNOTE: The image quality is LOW. Reduce confidence if uncertain and explain why."
       : "";
 
-  return `You are an expert plant pathologist and horticulturist. Analyze the provided plant image and return a strict JSON result.\n\n## Plant Profile\n- Nickname: ${plant.nickname ?? "Unknown"}\n- Species (scientific): ${plant.species_scientific ?? "Unknown"}\n- Species (common): ${plant.species_common ?? "Unknown"}\n- Environment: ${JSON.stringify(plant.environment_profile ?? {})}\n\n## External Plant Knowledge (rules/API)\n${plantKnowledgeSummary}\n\n## Environmental Telemetry\n- Temperature: ${scan.temp_c !== null ? `${scan.temp_c}C` : "unavailable"}\n- Humidity: ${scan.humidity_pct !== null ? `${scan.humidity_pct}%` : "unavailable"}\n- VPD: ${scan.vpd_kpa !== null ? `${scan.vpd_kpa} kPa` : "unavailable"}\n- Light (lux): ${scan.lux_reading !== null ? scan.lux_reading : "unavailable"}\n- AQI: ${scan.aqi !== null ? scan.aqi : "unavailable"}\n- Solar Radiation: ${scan.solar_radiation_wm2 !== null ? `${scan.solar_radiation_wm2} W/m2` : "unavailable"}\n${qualityWarning}\n\n## Instructions\n1. Diagnose probable plant issue(s) from image + telemetry + external plant knowledge.\n2. Write diagnosis and treatment in ${locale}.\n3. diagnosis_code must always be canonical English snake_case.\n4. Return 1 to 3 practical recommendations with canonical recommendation_code in English snake_case and localized text in ${locale}.\n5. Return treatment_plan.commerce_links with actionable product search intents.\n6. Each commerce_links item must include product_type, search_query, and affiliate_url_template with {query} placeholder.\n7. Keep risk_level low/medium/high and randomization_allowed false by default.\n8. If uncertain, lower confidence and include uncertainty_reason.\n9. Output JSON ONLY.\n\n## Required JSON\n{\n  "diagnosis_code": "string",\n  "diagnosis_localized": "string",\n  "treatment_localized": "string",\n  "treatment_plan": {\n    "commerce_links": [\n      {\n        "product_type": "string",\n        "search_query": "string",\n        "affiliate_url_template": "https://www.amazon.in/s?k={query}"\n      }\n    ]\n  },\n  "health_score": 0,\n  "visual_symptoms": ["string"],\n  "confidence": 0.0,\n  "uncertainty_reason": null,\n  "recommendations": [\n    {\n      "recommendation_code": "string",\n      "recommendation_localized": "string",\n      "recommendation_details_localized": "string",\n      "priority": "high|medium|low",\n      "expected_followup_window_hours": 72,\n      "risk_level": "low|medium|high",\n      "randomization_allowed": false\n    }\n  ]\n}`;
+  return `You are an expert plant pathologist and horticulturist. Analyze the provided plant image and return a strict JSON result.\n\n## Plant Profile\n- Nickname: ${plant.nickname ?? "Unknown"}\n- Species (scientific): ${plant.species_scientific ?? "Unknown"}\n- Species (common): ${plant.species_common ?? "Unknown"}\n- Environment: ${JSON.stringify(plant.environment_profile ?? {})}\n\n## External Plant Knowledge (rules/API)\n${plantKnowledgeSummary}\n\n## Environmental Telemetry\n- Temperature: ${scan.temp_c !== null ? `${scan.temp_c}C` : "unavailable"}\n- Humidity: ${scan.humidity_pct !== null ? `${scan.humidity_pct}%` : "unavailable"}\n- VPD: ${scan.vpd_kpa !== null ? `${scan.vpd_kpa} kPa` : "unavailable"}\n- Light (lux): ${scan.lux_reading !== null ? scan.lux_reading : "unavailable"}\n- AQI: ${scan.aqi !== null ? scan.aqi : "unavailable"}\n- Solar Radiation: ${scan.solar_radiation_wm2 !== null ? `${scan.solar_radiation_wm2} W/m2` : "unavailable"}\n${qualityWarning}\n\n## Instructions\n1. Diagnose probable plant issue(s) from image + telemetry + external plant knowledge.\n2. Write diagnosis and treatment in ${locale}.\n3. diagnosis_code must always be canonical English snake_case.\n4. Return 1 to 3 practical recommendations with canonical recommendation_code in English snake_case and localized text in ${locale}.\n5. Return treatment_plan.commerce_links with actionable product search intents.\n6. Each commerce_links item must include product_type, search_query, and affiliate_url_template with {query} placeholder.\n7. Keep risk_level low/medium/high and randomization_allowed false by default.\n8. Avoid contradictory recommendations in the same response.\n9. If uncertain, lower confidence and include uncertainty_reason.\n10. Output JSON ONLY.\n\n## Required JSON\n{\n  "diagnosis_code": "string",\n  "diagnosis_localized": "string",\n  "treatment_localized": "string",\n  "treatment_plan": {\n    "commerce_links": [\n      {\n        "product_type": "string",\n        "search_query": "string",\n        "affiliate_url_template": "https://www.amazon.in/s?k={query}"\n      }\n    ]\n  },\n  "health_score": 0,\n  "visual_symptoms": ["string"],\n  "confidence": 0.0,\n  "uncertainty_reason": null,\n  "recommendations": [\n    {\n      "recommendation_code": "string",\n      "recommendation_localized": "string",\n      "recommendation_details_localized": "string",\n      "priority": "high|medium|low",\n      "expected_followup_window_hours": 72,\n      "risk_level": "low|medium|high",\n      "randomization_allowed": false\n    }\n  ]\n}`;
 }
 
 function parseModelJson(responseText: string): Record<string, unknown> {
@@ -95,6 +137,7 @@ function parseModelJson(responseText: string): Record<string, unknown> {
 
 function normalizeRecommendations(raw: unknown): Recommendation[] {
   if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
 
   return raw
     .map((item) => {
@@ -115,10 +158,17 @@ function normalizeRecommendations(raw: unknown): Recommendation[] {
       const expected_followup_window_hours =
         Number.isFinite(expected) && expected > 0 ? Math.round(expected) : 72;
 
+      const recommendation_code = toCanonicalCode(
+        String(rec.recommendation_code ?? localized),
+      );
+      if (seen.has(recommendation_code)) return null;
+      seen.add(recommendation_code);
+
+      const randomizationAllowed = Boolean(rec.randomization_allowed ?? false) &&
+        risk_level === "low";
+
       return {
-        recommendation_code: toCanonicalCode(
-          String(rec.recommendation_code ?? localized),
-        ),
+        recommendation_code,
         recommendation_localized: localized,
         recommendation_details_localized:
           rec.recommendation_details_localized != null
@@ -127,7 +177,7 @@ function normalizeRecommendations(raw: unknown): Recommendation[] {
         priority,
         expected_followup_window_hours,
         risk_level,
-        randomization_allowed: Boolean(rec.randomization_allowed ?? false),
+        randomization_allowed: randomizationAllowed,
       } as Recommendation;
     })
     .filter((r): r is Recommendation => r !== null)
@@ -136,7 +186,7 @@ function normalizeRecommendations(raw: unknown): Recommendation[] {
 
 function normalizeCommerceLinks(raw: unknown): CommerceLink[] {
   if (!Array.isArray(raw)) return [];
-  const fallbackTemplate = "https://www.amazon.in/s?k={query}";
+  const seenQueries = new Set<string>();
 
   return raw
     .map((item) => {
@@ -144,9 +194,12 @@ function normalizeCommerceLinks(raw: unknown): CommerceLink[] {
       const row = item as Record<string, unknown>;
       const product_type = String(row.product_type ?? "").trim();
       const search_query = String(row.search_query ?? "").trim();
-      const affiliate_url_template = String(
-        row.affiliate_url_template ?? fallbackTemplate,
-      ).trim() || fallbackTemplate;
+      const canonicalQuery = search_query.toLowerCase();
+      if (seenQueries.has(canonicalQuery)) return null;
+      seenQueries.add(canonicalQuery);
+      const affiliate_url_template = sanitizeAffiliateTemplate(
+        String(row.affiliate_url_template ?? DEFAULT_AFFILIATE_TEMPLATE),
+      );
       if (!product_type || !search_query) return null;
       return { product_type, search_query, affiliate_url_template } as CommerceLink;
     })
@@ -287,6 +340,13 @@ serve(async (req: Request) => {
 
     const healthScore = Math.max(0, Math.min(100, Math.round(Number(diagnosis.health_score) || 50)));
     const confidence = Math.max(0, Math.min(1, Number(diagnosis.confidence) || 0));
+    const normalizedDiagnosisCode = toSnakeCase(
+      String(diagnosis.diagnosis_code ?? "unknown"),
+      "unknown",
+    );
+    const uncertaintyReason = diagnosis.uncertainty_reason != null
+      ? String(diagnosis.uncertainty_reason)
+      : null;
     const modelVersion = geminiData.modelVersion ?? AI_MODEL_NAME;
 
     const recommendations = normalizeRecommendations(diagnosis.recommendations);
@@ -294,6 +354,10 @@ serve(async (req: Request) => {
       (diagnosis.treatment_plan as Record<string, unknown> | undefined)
         ?.commerce_links,
     );
+    const band = confidenceBand(confidence);
+    const effectiveUncertaintyReason = band === "low" && (uncertaintyReason == null || uncertaintyReason.isEmpty)
+      ? "Low confidence due to limited visual or telemetry certainty."
+      : uncertaintyReason;
 
     const { error: updateError } = await serviceClient
       .from("scans")
@@ -303,7 +367,7 @@ serve(async (req: Request) => {
         prompt_version: PROMPT_VERSION,
         diagnosis_confidence: confidence,
         health_score: healthScore,
-        diagnosis_code: String(diagnosis.diagnosis_code ?? "unknown"),
+        diagnosis_code: normalizedDiagnosisCode,
         diagnosis_localized: String(diagnosis.diagnosis_localized ?? ""),
         treatment_localized: String(diagnosis.treatment_localized ?? ""),
         visual_symptoms: Array.isArray(diagnosis.visual_symptoms)
@@ -316,6 +380,14 @@ serve(async (req: Request) => {
           treatment_plan: {
             ...((diagnosis.treatment_plan as Record<string, unknown> | undefined) ?? {}),
             commerce_links: commerceLinks,
+          },
+          confidence_band: band,
+          uncertainty_reason: effectiveUncertaintyReason,
+          guardrails_applied: {
+            normalized_diagnosis_code: true,
+            deduped_recommendations: true,
+            sanitized_commerce_links: true,
+            risk_based_randomization_blocked: true,
           },
         },
         processing_status: "completed",

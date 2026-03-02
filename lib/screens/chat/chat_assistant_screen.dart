@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/plant_provider.dart';
+import '../../services/analytics_service.dart';
 import '../../widgets/glassmorphic_card.dart';
 
 class ChatAssistantScreen extends ConsumerStatefulWidget {
@@ -15,6 +16,7 @@ class ChatAssistantScreen extends ConsumerStatefulWidget {
 
 class _ChatAssistantScreenState extends ConsumerState<ChatAssistantScreen> {
   final _controller = TextEditingController();
+  bool _lockedTracked = false;
 
   @override
   void dispose() {
@@ -29,6 +31,15 @@ class _ChatAssistantScreenState extends ConsumerState<ChatAssistantScreen> {
     final isPremium = ref.watch(isPremiumProvider);
 
     if (!isPremium) {
+      if (!_lockedTracked) {
+        _lockedTracked = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          AnalyticsService.track(
+            'assistant_locked_viewed',
+            context: {'surface': 'assistant'},
+          );
+        });
+      }
       return Scaffold(
         appBar: AppBar(title: const Text('Plant Assistant')),
         body: Center(
@@ -46,13 +57,22 @@ class _ChatAssistantScreenState extends ConsumerState<ChatAssistantScreen> {
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
                   ),
                   SizedBox(height: 8),
-                  Text(
-                    'Real-time AI care assistant is available on Premium. Upgrade to unlock conversational diagnostics and recovery guidance.',
-                    textAlign: TextAlign.center,
-                  ),
+                  Text('Real-time AI care assistant is available on Premium.'),
                 ],
               ),
             ),
+          ),
+        ),
+        bottomNavigationBar: SafeArea(
+          minimum: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: FilledButton(
+            onPressed: () {
+              AnalyticsService.track(
+                'assistant_upgrade_cta_tapped',
+                context: {'surface': 'assistant_lock'},
+              );
+            },
+            child: const Text('Upgrade to Premium'),
           ),
         ),
       );

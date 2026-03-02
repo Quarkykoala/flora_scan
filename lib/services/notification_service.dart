@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tz;
@@ -20,6 +21,10 @@ class NotificationService {
 
   static Future<void> initialize() async {
     if (_initialized) return;
+    if (kIsWeb) {
+      _initialized = true;
+      return;
+    }
 
     await _initializeTimezone();
 
@@ -53,11 +58,14 @@ class NotificationService {
   }
 
   static Future<void> scheduleMissionReminder(FollowupMission mission) async {
-    if (!_initialized || mission.status != FollowupMissionStatus.pending) return;
+    if (!_initialized || kIsWeb || mission.status != FollowupMissionStatus.pending) {
+      return;
+    }
 
     final due = mission.dueAtUtc.toLocal();
     if (due.isBefore(DateTime.now())) return;
     final dueTz = tz.TZDateTime.from(due, tz.local);
+    final now = tz.TZDateTime.now(tz.local);
 
     final details = NotificationDetails(
       android: AndroidNotificationDetails(
@@ -70,8 +78,21 @@ class NotificationService {
       iOS: const DarwinNotificationDetails(),
     );
 
+    final preDueAt = _computePreDueReminderAt(dueTz, now);
+    if (preDueAt != null) {
+      await _plugin.zonedSchedule(
+        _notificationIdForMissionStage(mission.id, 'pre'),
+        'Plant follow-up coming up',
+        'Reminder: your recovery check-in is soon',
+        preDueAt,
+        details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        payload: mission.id,
+      );
+    }
+
     await _plugin.zonedSchedule(
-      _notificationIdForMission(mission.id),
+      _notificationIdForMissionStage(mission.id, 'due'),
       'Plant follow-up due',
       'Log outcome for your recommended action',
       dueTz,
@@ -82,11 +103,13 @@ class NotificationService {
   }
 
   static Future<void> cancelMissionReminder(String missionId) async {
-    await _plugin.cancel(_notificationIdForMission(missionId));
+    if (!_initialized || kIsWeb) return;
+    await _plugin.cancel(_notificationIdForMissionStage(missionId, 'pre'));
+    await _plugin.cancel(_notificationIdForMissionStage(missionId, 'due'));
   }
 
   static Future<void> syncMissionReminders(List<FollowupMission> missions) async {
-    if (!_initialized) return;
+    if (!_initialized || kIsWeb) return;
 
     final pendingMissionIds = missions
         .where((mission) => mission.status == FollowupMissionStatus.pending)
@@ -123,8 +146,23 @@ class NotificationService {
     _timezoneInitialized = true;
   }
 
-  static int _notificationIdForMission(String missionId) {
-    final digest = sha1.convert(utf8.encode('mission:$missionId')).toString();
+  static tz.TZDateTime? _computePreDueReminderAt(
+    tz.TZDateTime dueAt,
+    tz.TZDateTime now,
+  ) {
+    final lead = dueAt.difference(now);
+    if (lead <= const Duration(hours: 3)) return null;
+    if (lead >= const Duration(days: 2)) {
+      return dueAt.subtract(const Duration(hours: 24));
+    }
+    if (lead >= const Duration(hours: 12)) {
+      return dueAt.subtract(const Duration(hours: 6));
+    }
+    return dueAt.subtract(const Duration(hours: 2));
+  }
+
+  static int _notificationIdForMissionStage(String missionId, String stage) {
+    final digest = sha1.convert(utf8.encode('mission:$missionId:$stage')).toString();
     return int.parse(digest.substring(0, 8), radix: 16) & 0x7fffffff;
   }
 }
