@@ -13,10 +13,18 @@ CREATE TABLE IF NOT EXISTS public.users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   locale_code TEXT NOT NULL DEFAULT 'en',
   research_consent BOOLEAN NOT NULL DEFAULT false,
+  is_premium BOOLEAN NOT NULL DEFAULT false,
+  free_scans_remaining INT NOT NULL DEFAULT 10,
   climate_zone TEXT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.users
+  ADD COLUMN IF NOT EXISTS is_premium BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE public.users
+  ADD COLUMN IF NOT EXISTS free_scans_remaining INT NOT NULL DEFAULT 10;
 
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
@@ -28,6 +36,20 @@ CREATE POLICY "users_insert_own" ON public.users
 
 CREATE POLICY "users_update_own" ON public.users
   FOR UPDATE USING (id = auth.uid()) WITH CHECK (id = auth.uid());
+
+-- ============================================
+-- B2B API KEYS TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.b2b_api_keys (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  company_name TEXT NOT NULL,
+  api_key TEXT NOT NULL UNIQUE, -- stores SHA-256 hash of the API key
+  tier_limit INT NOT NULL DEFAULT 1000,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_b2b_api_keys_company_name
+  ON public.b2b_api_keys(company_name);
 
 -- ============================================
 -- 2. PLANTS TABLE
@@ -442,6 +464,32 @@ CREATE TRIGGER interventions_updated_at
 -- ============================================
 -- 12. CHECK CONSTRAINTS
 -- ============================================
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_users_free_scans_remaining'
+      AND conrelid = 'public.users'::regclass
+  ) THEN
+    ALTER TABLE public.users
+      ADD CONSTRAINT chk_users_free_scans_remaining
+      CHECK (free_scans_remaining >= 0);
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'chk_b2b_api_keys_tier_limit'
+      AND conrelid = 'public.b2b_api_keys'::regclass
+  ) THEN
+    ALTER TABLE public.b2b_api_keys
+      ADD CONSTRAINT chk_b2b_api_keys_tier_limit
+      CHECK (tier_limit > 0);
+  END IF;
+END $$;
+
 DO $$
 BEGIN
   IF NOT EXISTS (

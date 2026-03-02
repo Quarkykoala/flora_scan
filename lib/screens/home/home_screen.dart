@@ -6,6 +6,7 @@ import '../../l10n/app_localizations.dart';
 
 import '../../config/theme.dart';
 import '../../models/plant.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/plant_provider.dart';
 import '../../providers/scan_provider.dart';
 import '../../widgets/ambient_background.dart';
@@ -19,6 +20,7 @@ class HomeScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final plantsAsync = ref.watch(plantsProvider);
     final queueSize = ref.watch(offlineQueueSizeProvider);
+    final profile = ref.watch(userProfileProvider).valueOrNull;
 
     return AmbientBackground(
       child: Scaffold(
@@ -48,6 +50,24 @@ class HomeScreen extends ConsumerWidget {
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ],
+                  ),
+                ),
+              ),
+            if (profile != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GlassmorphicCard(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  borderRadius: 20,
+                  backgroundColor: profile.isPremium
+                      ? AppTheme.primaryGreen.withValues(alpha: 0.18)
+                      : Colors.white.withValues(alpha: 0.20),
+                  child: Text(
+                    profile.isPremium ? 'Premium' : 'Free',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: profile.isPremium ? AppTheme.primaryGreen : Colors.black87,
+                    ),
                   ),
                 ),
               ),

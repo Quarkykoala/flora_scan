@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../l10n/app_localizations.dart';
+import '../providers/auth_provider.dart';
 
 import '../screens/auth/login_screen.dart';
 import '../screens/home/home_screen.dart';
@@ -13,11 +14,20 @@ import '../screens/settings/settings_screen.dart';
 import '../screens/scan/scan_history_screen.dart';
 import '../screens/chat/chat_assistant_screen.dart';
 
-final routerProvider = Provider<GoRouter>((_) {
+final routerProvider = Provider<GoRouter>((ref) {
+  final authState = ref.watch(authStateProvider);
+
   return GoRouter(
     initialLocation: '/',
-    // Temporarily disable auth gate for local testing/demo flows.
-    redirect: (_, __) => null,
+    redirect: (_, state) {
+      final user = authState.valueOrNull;
+      final isLoginRoute = state.matchedLocation == '/login';
+
+      if (authState.isLoading) return null;
+      if (user == null) return isLoginRoute ? null : '/login';
+      if (isLoginRoute) return '/';
+      return null;
+    },
     routes: [
       GoRoute(
         path: '/login',

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../config/theme.dart';
 import '../../models/followup_mission.dart';
@@ -77,6 +78,7 @@ class DiagnosisResultScreen extends ConsumerWidget {
   }
 
   Widget _buildResultContent(BuildContext context, WidgetRef ref, Scan scan) {
+    final commerceLinks = _extractCommerceLinks(scan);
     final recommendationsAsync =
         ref.watch(scanInterventionRecommendationsProvider(scan.id));
     final missionsAsync = ref.watch(plantFollowupMissionsProvider(scan.plantId));
@@ -281,41 +283,72 @@ class DiagnosisResultScreen extends ConsumerWidget {
                                 ),
                               ],
                               const SizedBox(height: 12),
-                              FilledButton.icon(
-                                onPressed: outcomeState.isLoading
-                                    ? null
-                                    : () => _showOutcomeBottomSheet(
-                                          context: context,
-                                          recommendation: recommendation,
-                                          onSubmit: (outcomeDraft) async {
-                                            await outcomeNotifier.submitOutcome(
-                                              interventionId: recommendation.id,
-                                              adherenceStatus:
-                                                  outcomeDraft.adherenceStatus,
-                                              outcomeStatus:
-                                                  outcomeDraft.outcomeStatus,
-                                              adherenceNotes: outcomeDraft.notes,
-                                              outcomeNotes: outcomeDraft.notes,
-                                              outcomeConfidence:
-                                                  outcomeDraft.outcomeConfidence,
-                                            );
-                                            ref.invalidate(
-                                                plantFollowupMissionsProvider(scan.plantId));
-                                            ref.invalidate(
-                                                scanInterventionRecommendationsProvider(scan.id));
-                                            if (context.mounted) {
-                                              Navigator.of(context).pop();
-                                            }
-                                          },
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: FilledButton.icon(
+                                      onPressed: outcomeState.isLoading
+                                          ? null
+                                          : () => _showOutcomeBottomSheet(
+                                                context: context,
+                                                recommendation: recommendation,
+                                                onSubmit: (outcomeDraft) async {
+                                                  await outcomeNotifier.submitOutcome(
+                                                    interventionId: recommendation.id,
+                                                    adherenceStatus:
+                                                        outcomeDraft.adherenceStatus,
+                                                    outcomeStatus:
+                                                        outcomeDraft.outcomeStatus,
+                                                    adherenceNotes:
+                                                        outcomeDraft.notes,
+                                                    outcomeNotes: outcomeDraft.notes,
+                                                    outcomeConfidence:
+                                                        outcomeDraft.outcomeConfidence,
+                                                  );
+                                                  ref.invalidate(
+                                                    plantFollowupMissionsProvider(
+                                                      scan.plantId,
+                                                    ),
+                                                  );
+                                                  ref.invalidate(
+                                                    scanInterventionRecommendationsProvider(
+                                                      scan.id,
+                                                    ),
+                                                  );
+                                                  if (context.mounted) {
+                                                    Navigator.of(context).pop();
+                                                  }
+                                                },
+                                              ),
+                                      icon: outcomeState.isLoading
+                                          ? const SizedBox(
+                                              width: 14,
+                                              height: 14,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : const Icon(Icons.task_alt),
+                                      label: const Text('Log Outcome'),
+                                    ),
+                                  ),
+                                  if (commerceLinks.isNotEmpty) ...[
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: FilledButton.icon(
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: AppTheme.primaryGreen,
                                         ),
-                                icon: outcomeState.isLoading
-                                    ? const SizedBox(
-                                        width: 14,
-                                        height: 14,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      )
-                                    : const Icon(Icons.task_alt),
-                                label: const Text('Log Outcome'),
+                                        onPressed: () => _openCommerceLink(
+                                          context,
+                                          commerceLinks.first,
+                                        ),
+                                        icon: const Icon(Icons.shopping_bag_outlined),
+                                        label: const Text('Buy Treatment Now'),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ],
                           ),
@@ -556,6 +589,51 @@ class DiagnosisResultScreen extends ConsumerWidget {
     );
     notesController.dispose();
   }
+
+  List<_CommerceLink> _extractCommerceLinks(Scan scan) {
+    final raw = scan.aiDiagnosisRaw;
+    if (raw == null) return const [];
+    final treatmentPlan = raw['treatment_plan'];
+    if (treatmentPlan is! Map<String, dynamic>) return const [];
+    final links = treatmentPlan['commerce_links'];
+    if (links is! List) return const [];
+
+    return links
+        .whereType<Map>()
+        .map((item) {
+          final map = Map<String, dynamic>.from(item);
+          final productType = (map['product_type'] as String?)?.trim() ?? '';
+          final searchQuery = (map['search_query'] as String?)?.trim() ?? '';
+          final template =
+              (map['affiliate_url_template'] as String?)?.trim() ??
+                  'https://www.amazon.in/s?k={query}';
+          if (productType.isEmpty || searchQuery.isEmpty) return null;
+          return _CommerceLink(
+            productType: productType,
+            searchQuery: searchQuery,
+            affiliateUrlTemplate: template,
+          );
+        })
+        .whereType<_CommerceLink>()
+        .toList();
+  }
+
+  Future<void> _openCommerceLink(
+    BuildContext context,
+    _CommerceLink link,
+  ) async {
+    final encodedQuery = Uri.encodeQueryComponent(link.searchQuery);
+    final url = link.affiliateUrlTemplate.replaceAll('{query}', encodedQuery);
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+
+    final launched = await launchUrl(uri, mode: LaunchMode.platformDefault);
+    if (!launched && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open treatment link')),
+      );
+    }
+  }
 }
 
 String _missionTitle(FollowupMissionType type) {
@@ -646,6 +724,18 @@ class _OutcomeDraft {
     required this.outcomeStatus,
     this.notes,
     this.outcomeConfidence,
+  });
+}
+
+class _CommerceLink {
+  final String productType;
+  final String searchQuery;
+  final String affiliateUrlTemplate;
+
+  const _CommerceLink({
+    required this.productType,
+    required this.searchQuery,
+    required this.affiliateUrlTemplate,
   });
 }
 

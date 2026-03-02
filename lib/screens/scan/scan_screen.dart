@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../config/theme.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/scan_provider.dart';
 import '../../providers/plant_provider.dart';
 import '../../utils/haptics.dart';
@@ -23,6 +24,7 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   CameraController? _cameraController;
   bool _isCameraReady = false;
   bool _isCapturing = false;
+  bool _requestDeepAnalysis = true;
   String? _cameraErrorMessage;
   String? _selectedPlantId;
   List<CameraDescription> _cameras = [];
@@ -99,7 +101,30 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       );
 
       if (scanId != null && mounted) {
-        context.push('/diagnosis/$scanId');
+        final isPremium = ref.read(isPremiumProvider);
+
+        if (_requestDeepAnalysis && !isPremium) {
+          await _showPaywallBottomSheet();
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Basic scan saved. Upgrade to unlock deep AI diagnosis.',
+              ),
+            ),
+          );
+          return;
+        }
+
+        if (_requestDeepAnalysis) {
+          context.push('/diagnosis/$scanId');
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Basic telemetry scan saved successfully.'),
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -339,6 +364,32 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                     },
                   ),
                   const SizedBox(height: 32),
+                  GlassmorphicCard(
+                    borderRadius: 16,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    backgroundColor: Colors.white.withValues(alpha: 0.12),
+                    child: SwitchListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      activeThumbColor: AppTheme.primaryGreen,
+                      title: const Text(
+                        'Deep AI Analysis',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      subtitle: const Text(
+                        'Detailed diagnosis + treatment plan',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                      value: _requestDeepAnalysis,
+                      onChanged: (value) {
+                        setState(() => _requestDeepAnalysis = value);
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
 
                   // Capture button
                   GestureDetector(
@@ -453,6 +504,64 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       case ScanPipelineState.idle:
         return '';
     }
+  }
+
+  Future<void> _showPaywallBottomSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return GlassmorphicCard(
+          borderRadius: 24,
+          blur: 20,
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+          backgroundColor: Colors.black.withValues(alpha: 0.65),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Unlock Deep Analysis',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Premium includes full AI diagnostics, treatment intelligence, and real-time assistant chat.',
+                style: TextStyle(color: Colors.white70),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  color: Colors.white.withValues(alpha: 0.12),
+                ),
+                child: const Text(
+                  r'Premium Annual: $29.99/year',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Upgrade to Premium'),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
 

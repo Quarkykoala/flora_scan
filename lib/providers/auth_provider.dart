@@ -23,6 +23,14 @@ final userProfileProvider =
   return UserProfile.fromJson(data);
 });
 
+final isPremiumProvider = Provider.autoDispose<bool>((ref) {
+  return ref.watch(userProfileProvider).valueOrNull?.isPremium ?? false;
+});
+
+final freeScansRemainingProvider = Provider.autoDispose<int>((ref) {
+  return ref.watch(userProfileProvider).valueOrNull?.freeScansRemaining ?? 0;
+});
+
 /// Auth actions notifier.
 class AuthNotifier extends StateNotifier<AsyncValue<void>> {
   AuthNotifier() : super(const AsyncValue.data(null));
@@ -63,6 +71,8 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
           'id': response.user!.id,
           'locale_code': localeCode,
           'research_consent': false,
+          'is_premium': false,
+          'free_scans_remaining': 10,
         });
       }
 

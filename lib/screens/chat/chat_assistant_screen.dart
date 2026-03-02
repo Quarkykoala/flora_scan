@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/plant_provider.dart';
 import '../../widgets/glassmorphic_card.dart';
@@ -25,6 +26,37 @@ class _ChatAssistantScreenState extends ConsumerState<ChatAssistantScreen> {
   Widget build(BuildContext context) {
     final chat = ref.watch(chatProvider);
     final plantsAsync = ref.watch(plantsProvider);
+    final isPremium = ref.watch(isPremiumProvider);
+
+    if (!isPremium) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Plant Assistant')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: GlassmorphicCard(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Icon(Icons.lock_outline, size: 48),
+                  SizedBox(height: 12),
+                  Text(
+                    'Premium Feature Locked',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Real-time AI care assistant is available on Premium. Upgrade to unlock conversational diagnostics and recovery guidance.',
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(

@@ -1,8 +1,8 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
-import { validateAuthHeader } from "../_shared/security.ts";
 import { fetchPlantKnowledge } from "../_shared/plant-knowledge.ts";
+import { validateAuthOrB2BApiKey } from "../_shared/b2b-auth.ts";
 
 const PROMPT_VERSION = "1.2.0";
 const AI_MODEL_NAME = "gemini-2.0-flash";
@@ -19,6 +19,12 @@ type Recommendation = {
   expected_followup_window_hours?: number;
   risk_level?: "low" | "medium" | "high";
   randomization_allowed?: boolean;
+};
+
+type CommerceLink = {
+  product_type: string;
+  search_query: string;
+  affiliate_url_template: string;
 };
 
 const SAFE_RECOMMENDATION_CODES = new Set([
@@ -78,7 +84,7 @@ function buildDiagnosisPrompt(params: {
       ? "\nNOTE: The image quality is LOW. Reduce confidence if uncertain and explain why."
       : "";
 
-  return `You are an expert plant pathologist and horticulturist. Analyze the provided plant image and return a strict JSON result.\n\n## Plant Profile\n- Nickname: ${plant.nickname ?? "Unknown"}\n- Species (scientific): ${plant.species_scientific ?? "Unknown"}\n- Species (common): ${plant.species_common ?? "Unknown"}\n- Environment: ${JSON.stringify(plant.environment_profile ?? {})}\n\n## External Plant Knowledge (rules/API)\n${plantKnowledgeSummary}\n\n## Environmental Telemetry\n- Temperature: ${scan.temp_c !== null ? `${scan.temp_c}C` : "unavailable"}\n- Humidity: ${scan.humidity_pct !== null ? `${scan.humidity_pct}%` : "unavailable"}\n- VPD: ${scan.vpd_kpa !== null ? `${scan.vpd_kpa} kPa` : "unavailable"}\n- Light (lux): ${scan.lux_reading !== null ? scan.lux_reading : "unavailable"}\n- AQI: ${scan.aqi !== null ? scan.aqi : "unavailable"}\n- Solar Radiation: ${scan.solar_radiation_wm2 !== null ? `${scan.solar_radiation_wm2} W/m2` : "unavailable"}\n${qualityWarning}\n\n## Instructions\n1. Diagnose probable plant issue(s) from image + telemetry + external plant knowledge.\n2. Write diagnosis and treatment in ${locale}.\n3. diagnosis_code must always be canonical English snake_case.\n4. Return 1 to 3 practical recommendations with canonical recommendation_code in English snake_case and localized text in ${locale}.\n5. Keep risk_level low/medium/high and randomization_allowed false by default.\n6. If uncertain, lower confidence and include uncertainty_reason.\n7. Output JSON ONLY.\n\n## Required JSON\n{\n  "diagnosis_code": "string",\n  "diagnosis_localized": "string",\n  "treatment_localized": "string",\n  "health_score": 0,\n  "visual_symptoms": ["string"],\n  "confidence": 0.0,\n  "uncertainty_reason": null,\n  "recommendations": [\n    {\n      "recommendation_code": "string",\n      "recommendation_localized": "string",\n      "recommendation_details_localized": "string",\n      "priority": "high|medium|low",\n      "expected_followup_window_hours": 72,\n      "risk_level": "low|medium|high",\n      "randomization_allowed": false\n    }\n  ]\n}`;
+  return `You are an expert plant pathologist and horticulturist. Analyze the provided plant image and return a strict JSON result.\n\n## Plant Profile\n- Nickname: ${plant.nickname ?? "Unknown"}\n- Species (scientific): ${plant.species_scientific ?? "Unknown"}\n- Species (common): ${plant.species_common ?? "Unknown"}\n- Environment: ${JSON.stringify(plant.environment_profile ?? {})}\n\n## External Plant Knowledge (rules/API)\n${plantKnowledgeSummary}\n\n## Environmental Telemetry\n- Temperature: ${scan.temp_c !== null ? `${scan.temp_c}C` : "unavailable"}\n- Humidity: ${scan.humidity_pct !== null ? `${scan.humidity_pct}%` : "unavailable"}\n- VPD: ${scan.vpd_kpa !== null ? `${scan.vpd_kpa} kPa` : "unavailable"}\n- Light (lux): ${scan.lux_reading !== null ? scan.lux_reading : "unavailable"}\n- AQI: ${scan.aqi !== null ? scan.aqi : "unavailable"}\n- Solar Radiation: ${scan.solar_radiation_wm2 !== null ? `${scan.solar_radiation_wm2} W/m2` : "unavailable"}\n${qualityWarning}\n\n## Instructions\n1. Diagnose probable plant issue(s) from image + telemetry + external plant knowledge.\n2. Write diagnosis and treatment in ${locale}.\n3. diagnosis_code must always be canonical English snake_case.\n4. Return 1 to 3 practical recommendations with canonical recommendation_code in English snake_case and localized text in ${locale}.\n5. Return treatment_plan.commerce_links with actionable product search intents.\n6. Each commerce_links item must include product_type, search_query, and affiliate_url_template with {query} placeholder.\n7. Keep risk_level low/medium/high and randomization_allowed false by default.\n8. If uncertain, lower confidence and include uncertainty_reason.\n9. Output JSON ONLY.\n\n## Required JSON\n{\n  "diagnosis_code": "string",\n  "diagnosis_localized": "string",\n  "treatment_localized": "string",\n  "treatment_plan": {\n    "commerce_links": [\n      {\n        "product_type": "string",\n        "search_query": "string",\n        "affiliate_url_template": "https://www.amazon.in/s?k={query}"\n      }\n    ]\n  },\n  "health_score": 0,\n  "visual_symptoms": ["string"],\n  "confidence": 0.0,\n  "uncertainty_reason": null,\n  "recommendations": [\n    {\n      "recommendation_code": "string",\n      "recommendation_localized": "string",\n      "recommendation_details_localized": "string",\n      "priority": "high|medium|low",\n      "expected_followup_window_hours": 72,\n      "risk_level": "low|medium|high",\n      "randomization_allowed": false\n    }\n  ]\n}`;
 }
 
 function parseModelJson(responseText: string): Record<string, unknown> {
@@ -128,6 +134,26 @@ function normalizeRecommendations(raw: unknown): Recommendation[] {
     .slice(0, 3);
 }
 
+function normalizeCommerceLinks(raw: unknown): CommerceLink[] {
+  if (!Array.isArray(raw)) return [];
+  const fallbackTemplate = "https://www.amazon.in/s?k={query}";
+
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const row = item as Record<string, unknown>;
+      const product_type = String(row.product_type ?? "").trim();
+      const search_query = String(row.search_query ?? "").trim();
+      const affiliate_url_template = String(
+        row.affiliate_url_template ?? fallbackTemplate,
+      ).trim() || fallbackTemplate;
+      if (!product_type || !search_query) return null;
+      return { product_type, search_query, affiliate_url_template } as CommerceLink;
+    })
+    .filter((row): row is CommerceLink => row !== null)
+    .slice(0, 4);
+}
+
 serve(async (req: Request) => {
   const corsHeaders = getCorsHeaders(req.headers.get("Origin"));
 
@@ -135,13 +161,13 @@ serve(async (req: Request) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const authError = validateAuthHeader(req, corsHeaders);
-  if (authError) return authError;
-
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
   const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
+
+  const authResult = await validateAuthOrB2BApiKey(req, corsHeaders, serviceClient);
+  if (authResult instanceof Response) return authResult;
 
   let scanId: string | null = null;
 
@@ -250,6 +276,7 @@ serve(async (req: Request) => {
         diagnosis_code: "parse_error",
         diagnosis_localized: "Unable to parse AI response",
         treatment_localized: "Please try scanning again",
+        treatment_plan: { commerce_links: [] },
         health_score: 50,
         visual_symptoms: [],
         confidence: 0,
@@ -263,6 +290,10 @@ serve(async (req: Request) => {
     const modelVersion = geminiData.modelVersion ?? AI_MODEL_NAME;
 
     const recommendations = normalizeRecommendations(diagnosis.recommendations);
+    const commerceLinks = normalizeCommerceLinks(
+      (diagnosis.treatment_plan as Record<string, unknown> | undefined)
+        ?.commerce_links,
+    );
 
     const { error: updateError } = await serviceClient
       .from("scans")
@@ -282,6 +313,10 @@ serve(async (req: Request) => {
           ...diagnosis,
           knowledge_source: plantKnowledge.provider,
           knowledge_summary: plantKnowledge.summary,
+          treatment_plan: {
+            ...((diagnosis.treatment_plan as Record<string, unknown> | undefined) ?? {}),
+            commerce_links: commerceLinks,
+          },
         },
         processing_status: "completed",
         processing_error: null,
@@ -409,6 +444,7 @@ serve(async (req: Request) => {
           confidence,
         },
         knowledge_source: plantKnowledge.provider,
+        auth_mode: authResult.mode,
         recommendations_created: recommendationsCreated,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
