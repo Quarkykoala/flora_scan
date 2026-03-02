@@ -1,13 +1,6 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { validateAuthHeader } from "./security.ts";
-
-async function sha256(input: string): Promise<string> {
-  const data = new TextEncoder().encode(input);
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hash))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
+import { sha256Hex } from "./hash.ts";
 
 type B2BAuthResult = {
   mode: "jwt" | "b2b";
@@ -22,7 +15,7 @@ export async function validateAuthOrB2BApiKey(
 ): Promise<Response | B2BAuthResult> {
   const apiKey = req.headers.get("x-api-key")?.trim();
   if (apiKey) {
-    const hashedApiKey = await sha256(apiKey);
+    const hashedApiKey = await sha256Hex(apiKey);
     const { data, error } = await serviceClient
       .from("b2b_api_keys")
       .select("company_name, tier_limit")

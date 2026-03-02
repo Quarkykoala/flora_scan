@@ -5,6 +5,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../providers/plant_provider.dart';
 import '../../services/analytics_service.dart';
+import '../../services/payment_service.dart';
 import '../../widgets/glassmorphic_card.dart';
 
 class ChatAssistantScreen extends ConsumerStatefulWidget {
@@ -66,10 +67,14 @@ class _ChatAssistantScreenState extends ConsumerState<ChatAssistantScreen> {
         bottomNavigationBar: SafeArea(
           minimum: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           child: FilledButton(
-            onPressed: () {
-              AnalyticsService.track(
+            onPressed: () async {
+              await AnalyticsService.track(
                 'assistant_upgrade_cta_tapped',
                 context: {'surface': 'assistant_lock'},
+              );
+              await PaymentService.startPremiumCheckout(
+                context: context,
+                source: 'assistant_lock',
               );
             },
             child: const Text('Upgrade to Premium'),

@@ -10,6 +10,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/plant_provider.dart';
 import '../../providers/scan_provider.dart';
 import '../../services/analytics_service.dart';
+import '../../services/payment_service.dart';
 import '../../services/supabase_service.dart';
 import '../../utils/haptics.dart';
 import '../../widgets/radar_sweep_overlay.dart';
@@ -388,6 +389,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
                         'surface': 'scan_paywall',
                         'plan': 'annual_29_99',
                       },
+                    );
+                    await PaymentService.startPremiumCheckout(
+                      context: context,
+                      source: 'scan_paywall',
                     );
                     if (context.mounted) {
                       Navigator.of(context).pop();

@@ -13,12 +13,15 @@ import '../../providers/auth_provider.dart';
 import '../../providers/followup_mission_provider.dart';
 import '../../providers/plant_provider.dart';
 import '../../providers/scan_provider.dart';
+import '../../services/analytics_service.dart';
+import '../../services/supabase_service.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    _handlePaymentCallback(context, ref);
     final l10n = AppLocalizations.of(context)!;
     final plantsAsync = ref.watch(plantsProvider);
     final scansAsync = ref.watch(allScansProvider);
@@ -99,6 +102,48 @@ class HomeScreen extends ConsumerWidget {
         label: Text(l10n.addPlant),
       ),
     );
+  }
+
+  void _handlePaymentCallback(BuildContext context, WidgetRef ref) {
+    final state = GoRouterState.of(context);
+    final payment = state.uri.queryParameters['payment'];
+    if (payment == null) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!context.mounted) return;
+      if (payment == 'success') {
+        final userId = SupabaseService.currentUserId;
+        if (userId != null) {
+          await SupabaseService.updateUserProfile(userId, {
+            'is_premium': true,
+            'premium_source': 'dodo',
+          });
+          ref.invalidate(userProfileProvider);
+        }
+        await AnalyticsService.track(
+          'checkout_success',
+          context: {'provider': 'dodo'},
+        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Premium activated successfully.')),
+          );
+        }
+      } else {
+        await AnalyticsService.track(
+          'checkout_cancelled',
+          context: {'provider': 'dodo'},
+        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Checkout was cancelled.')),
+          );
+        }
+      }
+      if (context.mounted) {
+        context.go('/');
+      }
+    });
   }
 
   Widget _buildEmptyState(BuildContext context, AppLocalizations l10n) {

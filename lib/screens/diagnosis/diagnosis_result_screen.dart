@@ -37,7 +37,13 @@ class DiagnosisResultScreen extends ConsumerWidget {
           title: const Text('Analysis Result'),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
-            onPressed: () => context.pop(),
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+                return;
+              }
+              context.go('/');
+            },
           ),
         ),
         body: scanAsync.when(

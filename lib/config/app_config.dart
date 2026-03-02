@@ -12,6 +12,18 @@ class AppConfig {
     'APP_TEST_MODE',
     defaultValue: false,
   );
+  static const String dodoCheckoutBaseUrl = String.fromEnvironment(
+    'DODO_CHECKOUT_BASE_URL',
+    defaultValue: '',
+  );
+  static const String dodoSuccessUrl = String.fromEnvironment(
+    'DODO_SUCCESS_URL',
+    defaultValue: 'florascan://payment/success',
+  );
+  static const String dodoCancelUrl = String.fromEnvironment(
+    'DODO_CANCEL_URL',
+    defaultValue: 'florascan://payment/cancel',
+  );
 
   // Storage
   static const String imageBucket = 'plant-scans';
