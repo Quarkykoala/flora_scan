@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="820" viewBox="0 0 1400 820">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f4fbf5"/>
+      <stop offset="100%" stop-color="#e4f4e8"/>
+    </linearGradient>
+    <style>
+      .title { font: 700 34px "Segoe UI", Arial, sans-serif; fill: #124d2b; }
+      .sub { font: 500 18px "Segoe UI", Arial, sans-serif; fill: #2d5f3d; }
+      .step { fill: #fff; stroke: #95c9a5; stroke-width: 2; rx: 20; }
+      .h { font: 700 22px "Segoe UI", Arial, sans-serif; fill: #0f4b2b; }
+      .t { font: 500 16px "Segoe UI", Arial, sans-serif; fill: #274734; }
+      .arrow { stroke: #2f9d59; stroke-width: 3; fill: none; marker-end: url(#m); }
+      .chip { fill: #d9f2df; stroke: #86c69a; stroke-width: 1.5; rx: 12; }
+      .chipText { font: 600 14px "Segoe UI", Arial, sans-serif; fill: #1a5b35; }
+    </style>
+    <marker id="m" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2f9d59"/>
+    </marker>
+  </defs>
+  <rect width="1400" height="820" fill="url(#bg)"/>
+  <text x="52" y="64" class="title">Zero-Latency Scan Lifecycle</text>
+  <text x="52" y="94" class="sub">From instant user feedback to enriched diagnosis and mission scheduling</text>
+
+  <rect x="64" y="140" width="260" height="180" class="step"/>
+  <text x="86" y="182" class="h">1. Capture</text>
+  <text x="86" y="214" class="t">Photo + timestamp</text>
+  <text x="86" y="238" class="t">Lux + orientation</text>
+  <text x="86" y="262" class="t">Location (if allowed)</text>
+  <rect x="86" y="278" width="138" height="28" class="chip"/>
+  <text x="98" y="297" class="chipText">&lt;300ms feedback</text>
+
+  <rect x="366" y="140" width="260" height="180" class="step"/>
+  <text x="388" y="182" class="h">2. Queue</text>
+  <text x="388" y="214" class="t">Write PendingScan locally</text>
+  <text x="388" y="238" class="t">Set sync status pending</text>
+  <text x="388" y="262" class="t">Optimistic analyzing UI</text>
+  <rect x="388" y="278" width="128" height="28" class="chip"/>
+  <text x="401" y="297" class="chipText">Offline-first</text>
+
+  <rect x="668" y="140" width="260" height="180" class="step"/>
+  <text x="690" y="182" class="h">3. create-scan</text>
+  <text x="690" y="214" class="t">Upload image (private bucket)</text>
+  <text x="690" y="238" class="t">Insert scan row</text>
+  <text x="690" y="262" class="t">Enqueue jobs</text>
+  <rect x="690" y="278" width="162" height="28" class="chip"/>
+  <text x="702" y="297" class="chipText">Idempotent key</text>
+
+  <rect x="970" y="140" width="330" height="180" class="step"/>
+  <text x="992" y="182" class="h">4. Enrichment + AI</text>
+  <text x="992" y="214" class="t">Weather + AQI enrichment</text>
+  <text x="992" y="238" class="t">Gemini diagnosis + treatment</text>
+  <text x="992" y="262" class="t">Create interventions + missions</text>
+  <rect x="992" y="278" width="172" height="28" class="chip"/>
+  <text x="1004" y="297" class="chipText">Async pipeline</text>
+
+  <rect x="180" y="430" width="330" height="220" class="step"/>
+  <text x="204" y="472" class="h">5. Render Result</text>
+  <text x="204" y="504" class="t">Diagnosis confidence band</text>
+  <text x="204" y="528" class="t">Telemetry chips (temp/humidity/AQI/lux)</text>
+  <text x="204" y="552" class="t">Recommendations + commerce CTA</text>
+  <text x="204" y="576" class="t">Mission due window</text>
+
+  <rect x="560" y="430" width="660" height="220" class="step"/>
+  <text x="584" y="472" class="h">6. Recovery Loop</text>
+  <text x="584" y="504" class="t">Follow-up reminder -> user logs adherence + outcome</text>
+  <text x="584" y="528" class="t">Optional follow-up photo/scan link</text>
+  <text x="584" y="552" class="t">Write intervention_outcomes and close mission</text>
+  <text x="584" y="576" class="t">Improves recommendation effectiveness analytics over time</text>
+
+  <path d="M324 230 C 342 230, 348 230, 366 230" class="arrow"/>
+  <path d="M626 230 C 644 230, 650 230, 668 230" class="arrow"/>
+  <path d="M928 230 C 946 230, 952 230, 970 230" class="arrow"/>
+  <path d="M1135 320 C 1135 370, 935 430, 790 430" class="arrow"/>
+  <path d="M790 650 C 790 710, 345 710, 345 650" class="arrow"/>
+
+  <text x="52" y="776" class="sub">This architecture ensures no UI blocking on weather/AQI/AI calls while preserving full telemetry and intervention history.</text>
+</svg>
+

@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="700" viewBox="0 0 1400 700">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f4fbf5"/>
+      <stop offset="100%" stop-color="#e4f3e8"/>
+    </linearGradient>
+    <style>
+      .title { font: 700 34px "Segoe UI", Arial, sans-serif; fill: #124d2b; }
+      .sub { font: 500 18px "Segoe UI", Arial, sans-serif; fill: #2d5f3d; }
+      .axis { stroke: #84bd95; stroke-width: 2; }
+      .barA { fill: #2f9d59; }
+      .barB { fill: #48b86f; }
+      .barC { fill: #72cb90; }
+      .label { font: 600 16px "Segoe UI", Arial, sans-serif; fill: #1d5231; }
+      .value { font: 700 15px "Segoe UI", Arial, sans-serif; fill: #0f4b2b; }
+      .card { fill: #fff; stroke: #95c9a5; stroke-width: 2; rx: 16; }
+    </style>
+  </defs>
+  <rect width="1400" height="700" fill="url(#bg)"/>
+  <text x="52" y="64" class="title">Acquisition-Ready Metrics Framework</text>
+  <text x="52" y="94" class="sub">Track product retention, data quality, and recommendation effectiveness from day one</text>
+
+  <rect x="56" y="130" width="1288" height="520" class="card"/>
+  <line x1="150" y1="590" x2="1260" y2="590" class="axis"/>
+  <line x1="150" y1="210" x2="150" y2="590" class="axis"/>
+
+  <rect x="210" y="300" width="70" height="290" class="barA"/>
+  <text x="214" y="620" class="label">D7 Retention</text>
+  <text x="226" y="292" class="value">Top KPI</text>
+
+  <rect x="360" y="250" width="70" height="340" class="barA"/>
+  <text x="334" y="620" class="label">Scan→Result Rate</text>
+  <text x="372" y="242" class="value">Core UX</text>
+
+  <rect x="510" y="330" width="70" height="260" class="barB"/>
+  <text x="474" y="620" class="label">Follow-up Completion</text>
+  <text x="515" y="322" class="value">Recovery Loop</text>
+
+  <rect x="660" y="360" width="70" height="230" class="barB"/>
+  <text x="645" y="620" class="label">Outcome Submission</text>
+  <text x="665" y="352" class="value">Data Yield</text>
+
+  <rect x="810" y="280" width="70" height="310" class="barC"/>
+  <text x="792" y="620" class="label">Telemetry Completeness</text>
+  <text x="822" y="272" class="value">ML Readiness</text>
+
+  <rect x="960" y="260" width="70" height="330" class="barC"/>
+  <text x="948" y="620" class="label">Adherence Capture</text>
+  <text x="973" y="252" class="value">Causal Quality</text>
+
+  <rect x="1110" y="220" width="70" height="370" class="barA"/>
+  <text x="1084" y="620" class="label">Recovery by Rec Code</text>
+  <text x="1114" y="212" class="value">Intelligence</text>
+</svg>
+

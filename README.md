@@ -9,6 +9,8 @@ Production-grade Flutter + Supabase plant intelligence platform with:
 - Freemium paywall and premium assistant
 - B2B API key authentication path for enterprise ingestion
 
+![FloraScan Architecture](docs/images/system-architecture.svg)
+
 ## Table of Contents
 
 - [1. Product Overview](#1-product-overview)
@@ -21,6 +23,7 @@ Production-grade Flutter + Supabase plant intelligence platform with:
 - [8. Local Development Setup](#8-local-development-setup)
 - [9. Supabase Setup and Deployment](#9-supabase-setup-and-deployment)
 - [10. Testing and Validation](#10-testing-and-validation)
+- [Metrics Dashboard Blueprint](#metrics-dashboard-blueprint)
 - [11. Project Structure](#11-project-structure)
 - [12. Security and Privacy](#12-security-and-privacy)
 
@@ -86,6 +89,8 @@ flowchart TB
 
 ## 3. Core User Flows
 
+![Scan Lifecycle](docs/images/scan-lifecycle.svg)
+
 ### 3.1 Zero-Latency Scan Pipeline
 
 ```mermaid
@@ -123,6 +128,8 @@ flowchart LR
 ```
 
 ## 4. Screens and Routes
+
+![Screen Map](docs/images/screen-map.svg)
 
 Current route map (`go_router`):
 
@@ -325,6 +332,10 @@ Suggested release checks:
 - Submit outcome and confirm mission transitions to `completed`
 - Validate premium gates and paywall analytics events
 - Validate `x-api-key` path for enterprise endpoints
+
+## Metrics Dashboard Blueprint
+
+![North-Star Metrics](docs/images/north-star-metrics.svg)
 
 ## 11. Project Structure
 

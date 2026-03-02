@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="860" viewBox="0 0 1400 860">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f3fbf4"/>
+      <stop offset="100%" stop-color="#e1f1e6"/>
+    </linearGradient>
+    <style>
+      .title { font: 700 34px "Segoe UI", Arial, sans-serif; fill: #124d2b; }
+      .sub { font: 500 18px "Segoe UI", Arial, sans-serif; fill: #2d5f3d; }
+      .screen { fill: #fff; stroke: #90c6a0; stroke-width: 2; rx: 18; }
+      .h { font: 700 20px "Segoe UI", Arial, sans-serif; fill: #0f4b2b; }
+      .t { font: 500 15px "Segoe UI", Arial, sans-serif; fill: #274734; }
+      .tab { fill: #d8f0de; stroke: #87c29a; stroke-width: 1.4; rx: 12; }
+      .tabText { font: 600 13px "Segoe UI", Arial, sans-serif; fill: #175632; }
+      .arrow { stroke: #2f9d59; stroke-width: 3; fill: none; marker-end: url(#m); }
+    </style>
+    <marker id="m" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2f9d59"/>
+    </marker>
+  </defs>
+  <rect width="1400" height="860" fill="url(#bg)"/>
+  <text x="52" y="64" class="title">FloraScan Screen Map</text>
+  <text x="52" y="94" class="sub">Routes, user journeys, and premium gates</text>
+
+  <rect x="74" y="150" width="250" height="150" class="screen"/>
+  <text x="96" y="188" class="h">Login</text>
+  <text x="96" y="218" class="t">`/login`</text>
+  <text x="96" y="244" class="t">Skipped when APP_TEST_MODE=true</text>
+
+  <rect x="390" y="130" width="300" height="190" class="screen"/>
+  <text x="412" y="168" class="h">Home Dashboard</text>
+  <text x="412" y="198" class="t">`/`</text>
+  <text x="412" y="224" class="t">Plants list + weekly snapshot</text>
+  <rect x="412" y="246" width="90" height="24" class="tab"/><text x="427" y="263" class="tabText">Free/Premium</text>
+
+  <rect x="760" y="130" width="280" height="190" class="screen"/>
+  <text x="782" y="168" class="h">Add Plant</text>
+  <text x="782" y="198" class="t">`/plant/add`</text>
+  <text x="782" y="224" class="t">Profile + environment metadata</text>
+
+  <rect x="1090" y="130" width="250" height="190" class="screen"/>
+  <text x="1112" y="168" class="h">Plant Detail</text>
+  <text x="1112" y="198" class="t">`/plant/:id`</text>
+  <text x="1112" y="224" class="t">Timeline + actions + history</text>
+
+  <rect x="120" y="390" width="310" height="210" class="screen"/>
+  <text x="142" y="428" class="h">Scan</text>
+  <text x="142" y="458" class="t">`/scan`</text>
+  <text x="142" y="484" class="t">Camera + telemetry capture</text>
+  <text x="142" y="508" class="t">Deep AI toggle + paywall</text>
+  <rect x="142" y="530" width="118" height="24" class="tab"/><text x="154" y="547" class="tabText">Freemium Gate</text>
+
+  <rect x="500" y="390" width="350" height="210" class="screen"/>
+  <text x="522" y="428" class="h">Diagnosis Result</text>
+  <text x="522" y="458" class="t">`/diagnosis/:scanId`</text>
+  <text x="522" y="484" class="t">AI result + confidence + telemetry chips</text>
+  <text x="522" y="508" class="t">Interventions + Buy Treatment CTA</text>
+  <text x="522" y="532" class="t">Outcome capture and mission state</text>
+
+  <rect x="920" y="390" width="210" height="210" class="screen"/>
+  <text x="942" y="428" class="h">History</text>
+  <text x="942" y="458" class="t">`/scan-history`</text>
+  <text x="942" y="484" class="t">Longitudinal record view</text>
+
+  <rect x="1180" y="390" width="170" height="210" class="screen"/>
+  <text x="1202" y="428" class="h">Settings</text>
+  <text x="1202" y="458" class="t">`/settings`</text>
+  <text x="1202" y="484" class="t">Locale + consent + sync</text>
+
+  <rect x="500" y="650" width="350" height="140" class="screen"/>
+  <text x="522" y="688" class="h">Assistant Chat</text>
+  <text x="522" y="718" class="t">`/assistant`</text>
+  <text x="522" y="744" class="t">Premium-only conversational support</text>
+  <rect x="522" y="756" width="106" height="24" class="tab"/><text x="534" y="773" class="tabText">Premium Gate</text>
+
+  <path d="M324 225 C 350 225, 358 225, 390 225" class="arrow"/>
+  <path d="M690 225 C 716 225, 730 225, 760 225" class="arrow"/>
+  <path d="M1040 225 C 1060 225, 1070 225, 1090 225" class="arrow"/>
+  <path d="M540 320 C 540 356, 270 390, 270 390" class="arrow"/>
+  <path d="M540 320 C 540 356, 675 390, 675 390" class="arrow"/>
+  <path d="M540 320 C 540 356, 1025 390, 1025 390" class="arrow"/>
+  <path d="M540 320 C 540 356, 1265 390, 1265 390" class="arrow"/>
+  <path d="M430 495 C 456 495, 472 495, 500 495" class="arrow"/>
+  <path d="M675 600 C 675 628, 675 632, 675 650" class="arrow"/>
+</svg>
+
