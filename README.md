@@ -23,9 +23,9 @@ Production-grade Flutter + Supabase plant intelligence platform with:
 - [8. Local Development Setup](#8-local-development-setup)
 - [9. Supabase Setup and Deployment](#9-supabase-setup-and-deployment)
 - [10. Testing and Validation](#10-testing-and-validation)
-- [Metrics Dashboard Blueprint](#metrics-dashboard-blueprint)
-- [11. Project Structure](#11-project-structure)
-- [12. Security and Privacy](#12-security-and-privacy)
+- [11. Metrics Dashboard Blueprint](#11-metrics-dashboard-blueprint)
+- [12. Project Structure](#12-project-structure)
+- [13. Security and Privacy](#13-security-and-privacy)
 
 ## 1. Product Overview
 
@@ -333,11 +333,11 @@ Suggested release checks:
 - Validate premium gates and paywall analytics events
 - Validate `x-api-key` path for enterprise endpoints
 
-## Metrics Dashboard Blueprint
+## 11. Metrics Dashboard Blueprint
 
 ![North-Star Metrics](docs/images/north-star-metrics.svg)
 
-## 11. Project Structure
+## 12. Project Structure
 
 ```text
 lib/
@@ -364,7 +364,7 @@ supabase/
     create-b2b-api-key/
 ```
 
-## 12. Security and Privacy
+## 13. Security and Privacy
 
 - Private storage bucket for scan images
 - RLS across user-owned tables
@@ -374,9 +374,3 @@ supabase/
 - Input validation and auth checks in edge functions
 
 ---
-
-If you want, the next documentation pass can add:
-
-- Embedded app screenshots/GIF walkthroughs
-- API request/response examples per function
-- ERD synced to exact schema constraints
